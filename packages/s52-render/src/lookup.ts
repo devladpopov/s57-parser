@@ -29,6 +29,34 @@ export interface RenderInstruction {
   priority: number;
   /** Human-readable name */
   description?: string;
+
+  // ─── Text label ──────────────────────
+  /** ATTL code to use as text label (e.g. 174=VALSOU for soundings) */
+  textAttl?: number;
+  /** Color token for text */
+  textColor?: string;
+  /** Font size in pixels */
+  textSize?: number;
+  /** Text alignment */
+  textAlign?: CanvasTextAlign;
+  /** Text vertical offset in pixels (positive = down) */
+  textOffsetY?: number;
+  /** Format function name for text value ('depth'|'depthContour'|'lightChar') */
+  textFormat?: 'depth' | 'depthContour' | 'lightChar';
+
+  // ─── Sector light ────────────────────
+  /** Whether this object can render sector arcs */
+  sectorLight?: boolean;
+  /** Arc radius for sector lights */
+  sectorRadius?: number;
+
+  // ─── Pattern fill ────────────────────
+  /** Pattern type for area fill */
+  pattern?: 'hatch' | 'cross-hatch' | 'stipple';
+  /** Pattern spacing in pixels */
+  patternSpacing?: number;
+  /** Pattern color token */
+  patternColor?: string;
 }
 
 /**
@@ -156,6 +184,8 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
   [OBJL.DEPCNT, {
     type: 'line', stroke: 'DEPSC', strokeWidth: 0.5,
     priority: 3, description: 'Depth contour',
+    textAttl: 168, textColor: 'DEPSC', textSize: 9,
+    textFormat: 'depthContour',
   }],
 
   // ─── Soundings ───────────────────────────────────────
@@ -163,6 +193,8 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     type: 'point', fill: 'SNDG1', radius: 1.5,
     shape: 'circle', priority: 6,
     description: 'Sounding',
+    textAttl: 174, textColor: 'SNDG1', textSize: 8,
+    textFormat: 'depth', textOffsetY: -4,
   }],
 
   // ─── Obstructions and dangers ────────────────────────
@@ -217,6 +249,9 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     type: 'point', fill: 'LITYW', radius: 4,
     shape: 'circle', priority: 8,
     description: 'Light',
+    sectorLight: true, sectorRadius: 20,
+    textFormat: 'lightChar', textColor: 'CHBLK', textSize: 7,
+    textOffsetY: 10,
   }],
 
   // ─── Restricted/regulated areas ──────────────────────
@@ -225,6 +260,7 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     stroke: 'TRFCD', strokeWidth: 0.8,
     dashPattern: [6, 3], priority: 3,
     description: 'Restricted area',
+    pattern: 'hatch', patternSpacing: 8, patternColor: 'TRFCD',
   }],
   [OBJL.ACHARE, {
     type: 'area', fill: 'RESBL', fillAlpha: 0.15,
@@ -237,6 +273,7 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     stroke: 'CHBRN', strokeWidth: 0.5,
     dashPattern: [4, 4], priority: 2,
     description: 'Dumping ground',
+    pattern: 'stipple', patternSpacing: 6, patternColor: 'CHBRN',
   }],
   [OBJL.FAIRWY, {
     type: 'area', fill: 'DEPMD', fillAlpha: 0.2,
@@ -306,6 +343,7 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     type: 'area', fill: 'CHBRN', fillAlpha: 0.2,
     stroke: 'CHBRN', strokeWidth: 0.5, priority: 3,
     description: 'Marine farm/culture',
+    pattern: 'cross-hatch', patternSpacing: 10, patternColor: 'CHBRN',
   }],
 
   // ─── Rivers, canals ─────────────────────────────────
@@ -327,6 +365,91 @@ export const DEFAULT_INSTRUCTION: RenderInstruction = {
   priority: 1, description: 'Unknown object',
 };
 
+/** Common S-57 ATTL codes used for text labels and conditional symbology */
+export const ATTL = {
+  DRVAL1: 87,   // Depth range value 1
+  DRVAL2: 88,   // Depth range value 2
+  OBJNAM: 116,  // Object name
+  NOBJNM: 107,  // National object name
+  VALDCO: 168,  // Value of depth contour
+  VALSOU: 174,  // Value of sounding
+  LITCHR: 84,   // Light characteristic
+  SIGPER: 85,   // Signal period
+  SECTR1: 137,  // Sector limit 1 (degrees)
+  SECTR2: 138,  // Sector limit 2 (degrees)
+  COLOUR: 75,   // Colour code
+  HEIGHT: 95,   // Height
+  VERLEN: 178,  // Vertical length (bridge clearance)
+} as const;
+
+/** S-52 LITCHR code to abbreviation (IHO standard) */
+const LITCHR_ABBR: Record<string, string> = {
+  '1': 'F',    // Fixed
+  '2': 'Fl',   // Flashing
+  '3': 'LFl',  // Long-flashing
+  '4': 'Q',    // Quick
+  '5': 'VQ',   // Very quick
+  '6': 'UQ',   // Ultra quick
+  '7': 'Iso',  // Isophase
+  '8': 'Oc',   // Occulting
+  '9': 'IQ',   // Interrupted quick
+  '10': 'IVQ', // Interrupted very quick
+  '11': 'IUQ', // Interrupted ultra quick
+  '12': 'Mo',  // Morse code
+  '13': 'FFl', // Fixed/flashing
+  '14': 'Fl+LFl', // Flashing + long-flashing
+  '15': 'Oc+Fl',  // Occulting + flashing
+  '16': 'F+LFl',  // Fixed + long-flashing
+  '17': 'Al.Oc',  // Alternating occulting
+  '18': 'Al.LFl', // Alternating long-flashing
+  '19': 'Al.Fl',  // Alternating flashing
+  '25': 'Q+LFl',  // Quick + long-flashing
+  '26': 'VQ+LFl', // Very quick + long-flashing
+  '27': 'UQ+LFl', // Ultra quick + long-flashing
+  '28': 'Al',     // Alternating
+  '29': 'Al.FFl', // Alternating fixed/flashing
+};
+
+/** Map S-57 COLOUR code to light color token */
+export function lightColorToken(colourCode: string | undefined): string {
+  switch (colourCode) {
+    case '1': return 'LITYW';  // White → yellow on chart
+    case '3': return 'LITRD';  // Red
+    case '4': return 'LITGN';  // Green
+    case '6': return 'LITYW';  // Yellow
+    case '11': return 'LITYW'; // Orange → yellow
+    default: return 'LITYW';
+  }
+}
+
+/**
+ * Format a depth value for chart display (S-52 style).
+ * Whole meters: "12". Decimeters: "12₃" (subscript last digit).
+ */
+export function formatDepth(value: string | number): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (isNaN(num)) return '';
+  const abs = Math.abs(num);
+  const whole = Math.floor(abs);
+  const frac = Math.round((abs - whole) * 10);
+  if (frac === 0) return num < 0 ? `-${whole}` : `${whole}`;
+  return num < 0 ? `-${whole}.${frac}` : `${whole}.${frac}`;
+}
+
+/**
+ * Format light characteristic label (S-52 style).
+ * Example: "Fl(3) 10s" for flashing, group of 3, period 10s.
+ */
+export function formatLightChar(attrs: Map<number, string>): string {
+  const litchr = attrs.get(ATTL.LITCHR);
+  const sigper = attrs.get(ATTL.SIGPER);
+  if (!litchr) return '';
+  const abbr = LITCHR_ABBR[litchr] ?? `?${litchr}`;
+  const parts = [abbr];
+  if (sigper) parts.push(`${sigper}s`);
+  return parts.join(' ');
+}
+
 /**
  * Get the depth-dependent fill color for a DEPARE feature.
  * Uses DRVAL1 (minimum depth) and DRVAL2 (maximum depth) attributes.
@@ -341,7 +464,7 @@ export function depareColor(drval1: number, drval2: number): string {
 
 /**
  * Look up rendering instruction for an S-57 feature.
- * Handles conditional symbology for DEPARE by examining depth attributes.
+ * Handles conditional symbology for DEPARE and LIGHTS.
  */
 export function lookupInstruction(
   objl: number,
@@ -352,12 +475,17 @@ export function lookupInstruction(
 
   // Conditional symbology for DEPARE
   if (objl === OBJL.DEPARE && attributes) {
-    // ATTL 87 = DRVAL1, ATTL 88 = DRVAL2
-    const drval1Str = attributes.get(87);
-    const drval2Str = attributes.get(88);
+    const drval1Str = attributes.get(ATTL.DRVAL1);
+    const drval2Str = attributes.get(ATTL.DRVAL2);
     const drval1 = drval1Str != null ? parseFloat(drval1Str) : 0;
     const drval2 = drval2Str != null ? parseFloat(drval2Str) : 100;
     return { ...base, fill: depareColor(drval1, drval2) };
+  }
+
+  // Conditional symbology for LIGHTS: color depends on COLOUR attribute
+  if (objl === OBJL.LIGHTS && attributes) {
+    const colour = attributes.get(ATTL.COLOUR);
+    return { ...base, fill: lightColorToken(colour) };
   }
 
   return base;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { resolveColor, rgbToCSS } from '../src/colors.js';
-import { lookupInstruction, depareColor, OBJL } from '../src/lookup.js';
+import { lookupInstruction, depareColor, lightColorToken, formatDepth, formatLightChar, OBJL, ATTL } from '../src/lookup.js';
 
 describe('S-52 color palette', () => {
   it('should resolve known color tokens for DAY_BRIGHT', () => {
@@ -89,5 +89,139 @@ describe('DEPARE depth-dependent coloring', () => {
     attrs.set(88, '3');  // DRVAL2
     const instr = lookupInstruction(OBJL.DEPARE, attrs);
     expect(instr.fill).toBe('DEPVS'); // 0-3m = very shallow
+  });
+});
+
+describe('LIGHTS conditional symbology', () => {
+  it('should return red color for red lights', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.COLOUR, '3'); // Red
+    const instr = lookupInstruction(OBJL.LIGHTS, attrs);
+    expect(instr.fill).toBe('LITRD');
+  });
+
+  it('should return green color for green lights', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.COLOUR, '4'); // Green
+    const instr = lookupInstruction(OBJL.LIGHTS, attrs);
+    expect(instr.fill).toBe('LITGN');
+  });
+
+  it('should return yellow for white lights (standard chart convention)', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.COLOUR, '1'); // White
+    const instr = lookupInstruction(OBJL.LIGHTS, attrs);
+    expect(instr.fill).toBe('LITYW');
+  });
+
+  it('should have sector light enabled', () => {
+    const instr = lookupInstruction(OBJL.LIGHTS);
+    expect(instr.sectorLight).toBe(true);
+    expect(instr.sectorRadius).toBeGreaterThan(0);
+  });
+});
+
+describe('lightColorToken', () => {
+  it('should map standard color codes', () => {
+    expect(lightColorToken('1')).toBe('LITYW');  // White
+    expect(lightColorToken('3')).toBe('LITRD');  // Red
+    expect(lightColorToken('4')).toBe('LITGN');  // Green
+    expect(lightColorToken('6')).toBe('LITYW');  // Yellow
+  });
+
+  it('should default to yellow for unknown', () => {
+    expect(lightColorToken(undefined)).toBe('LITYW');
+    expect(lightColorToken('99')).toBe('LITYW');
+  });
+});
+
+describe('formatDepth', () => {
+  it('should format whole meters', () => {
+    expect(formatDepth(12)).toBe('12');
+    expect(formatDepth('5')).toBe('5');
+  });
+
+  it('should format fractional depths', () => {
+    expect(formatDepth(3.7)).toBe('3.7');
+    expect(formatDepth('12.3')).toBe('12.3');
+  });
+
+  it('should format negative (drying) depths', () => {
+    expect(formatDepth(-2)).toBe('-2');
+    expect(formatDepth(-0.5)).toBe('-0.5');
+  });
+
+  it('should return empty for NaN', () => {
+    expect(formatDepth('abc')).toBe('');
+  });
+
+  it('should handle zero', () => {
+    expect(formatDepth(0)).toBe('0');
+  });
+});
+
+describe('formatLightChar', () => {
+  it('should format basic light characteristic', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.LITCHR, '2'); // Flashing
+    expect(formatLightChar(attrs)).toBe('Fl');
+  });
+
+  it('should include period', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.LITCHR, '2'); // Flashing
+    attrs.set(ATTL.SIGPER, '10');
+    expect(formatLightChar(attrs)).toBe('Fl 10s');
+  });
+
+  it('should handle isophase', () => {
+    const attrs = new Map<number, string>();
+    attrs.set(ATTL.LITCHR, '7');
+    attrs.set(ATTL.SIGPER, '6');
+    expect(formatLightChar(attrs)).toBe('Iso 6s');
+  });
+
+  it('should return empty without LITCHR', () => {
+    const attrs = new Map<number, string>();
+    expect(formatLightChar(attrs)).toBe('');
+  });
+});
+
+describe('text label instructions', () => {
+  it('should have depth text for SOUNDG', () => {
+    const instr = lookupInstruction(OBJL.SOUNDG);
+    expect(instr.textFormat).toBe('depth');
+    expect(instr.textAttl).toBe(ATTL.VALSOU);
+    expect(instr.textColor).toBe('SNDG1');
+  });
+
+  it('should have depth contour text for DEPCNT', () => {
+    const instr = lookupInstruction(OBJL.DEPCNT);
+    expect(instr.textFormat).toBe('depthContour');
+    expect(instr.textAttl).toBe(ATTL.VALDCO);
+  });
+
+  it('should have light char text for LIGHTS', () => {
+    const instr = lookupInstruction(OBJL.LIGHTS);
+    expect(instr.textFormat).toBe('lightChar');
+  });
+});
+
+describe('pattern fill instructions', () => {
+  it('should have hatch pattern for RESARE', () => {
+    const instr = lookupInstruction(OBJL.RESARE);
+    expect(instr.pattern).toBe('hatch');
+    expect(instr.patternSpacing).toBeGreaterThan(0);
+    expect(instr.patternColor).toBe('TRFCD');
+  });
+
+  it('should have stipple for DMPGRD', () => {
+    const instr = lookupInstruction(OBJL.DMPGRD);
+    expect(instr.pattern).toBe('stipple');
+  });
+
+  it('should have cross-hatch for MARCUL', () => {
+    const instr = lookupInstruction(OBJL.MARCUL);
+    expect(instr.pattern).toBe('cross-hatch');
   });
 });
