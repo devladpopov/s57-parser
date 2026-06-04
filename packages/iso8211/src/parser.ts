@@ -326,9 +326,11 @@ function readUnsignedInt(bytes: Uint8Array): number {
 function readSignedInt(bytes: Uint8Array): number {
   const unsigned = readUnsignedInt(bytes);
   const bits = bytes.length * 8;
-  const signBit = 1 << (bits - 1);
+  // Use Math.pow to avoid JS bitwise 32-bit overflow (1 << 32 === 1 in JS)
+  const max = Math.pow(2, bits);
+  const signBit = max / 2;
   if (unsigned >= signBit) {
-    return unsigned - (1 << bits);
+    return unsigned - max;
   }
   return unsigned;
 }

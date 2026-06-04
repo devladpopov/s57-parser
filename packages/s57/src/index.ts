@@ -5,5 +5,16 @@
  * Handles feature extraction, topology resolution, and GeoJSON conversion.
  */
 
-// Placeholder - implementation follows after ISO 8211 parser is validated
-export const VERSION = '0.1.0';
+export { parseS57 } from './parser.js';
+export { toGeoJSON } from './geojson.js';
+export type {
+  S57Dataset,
+  FeatureRecord,
+  SpatialRecord,
+  SpatialRef,
+  FeatureObjectId,
+  Coordinate2D,
+  Coordinate3D,
+} from './types.js';
+export { GeomPrimitive, SpatialType } from './types.js';
+export type { GeoJSONFeatureCollection, GeoJSONFeature, GeoJSONGeometry } from './geojson.js';
