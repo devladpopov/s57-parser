@@ -5,8 +5,9 @@
  * Handles feature extraction, topology resolution, and GeoJSON conversion.
  */
 
-export { parseS57 } from './parser.js';
+export { parseS57, spatialKey } from './parser.js';
 export { toGeoJSON } from './geojson.js';
+export { applyUpdate } from './update.js';
 export type {
   S57Dataset,
   FeatureRecord,
