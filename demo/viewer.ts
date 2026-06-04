@@ -1,11 +1,14 @@
 /**
- * Browser demo: S-57 chart viewer with S-52 symbology rendering.
+ * Browser demo: S-57/S-101 chart viewer with S-52 symbology rendering.
  * Drag-drop an .000 file, see it rendered with IHO standard colors.
+ * Auto-detects S-57 vs S-101 format.
  */
 
 import { parseS57 } from '../packages/s57/src/parser.js';
-import { toGeoJSON } from '../packages/s57/src/geojson.js';
+import { toGeoJSON as toGeoJSON57 } from '../packages/s57/src/geojson.js';
 import type { GeoJSONFeatureCollection, GeoJSONGeometry } from '../packages/s57/src/geojson.js';
+import { parseS101, isS101 } from '../packages/s101/src/parser.js';
+import { toGeoJSON as toGeoJSON101 } from '../packages/s101/src/geojson.js';
 import { renderChart } from '../packages/s52-render/src/renderer.js';
 import type { DisplayMode } from '../packages/s52-render/src/colors.js';
 
@@ -57,24 +60,46 @@ async function loadFile(file: File) {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const t0 = performance.now();
-    const dataset = parseS57(arrayBuffer);
-    const t1 = performance.now();
-    geojson = toGeoJSON(dataset);
-    const t2 = performance.now();
 
-    // Attach raw attributes to GeoJSON properties for S-52 conditional symbology
-    for (let i = 0; i < geojson.features.length; i++) {
-      const feat = dataset.features.find(f => f.rcid === geojson!.features[i].properties.RCID);
-      if (feat) {
-        geojson.features[i].properties._attributes = feat.attributes;
+    // Auto-detect S-57 vs S-101 format
+    const s101 = isS101(arrayBuffer);
+    let datasetName: string;
+    let featureCount: number;
+    let spatialCount: number;
+
+    if (s101) {
+      const dataset = parseS101(arrayBuffer);
+      const t1 = performance.now();
+      geojson = toGeoJSON101(dataset) as GeoJSONFeatureCollection;
+      const t2 = performance.now();
+
+      for (let i = 0; i < geojson.features.length; i++) {
+        const feat = dataset.features.find(f => f.rcid === geojson!.features[i].properties.RCID);
+        if (feat) geojson.features[i].properties._attributes = feat.attributes;
       }
+
+      datasetName = `[S-101] ${dataset.name}`;
+      featureCount = dataset.features.length;
+      spatialCount = dataset.spatialRecords.size;
+      stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
+    } else {
+      const dataset = parseS57(arrayBuffer);
+      const t1 = performance.now();
+      geojson = toGeoJSON57(dataset);
+      const t2 = performance.now();
+
+      for (let i = 0; i < geojson.features.length; i++) {
+        const feat = dataset.features.find(f => f.rcid === geojson!.features[i].properties.RCID);
+        if (feat) geojson.features[i].properties._attributes = feat.attributes;
+      }
+
+      datasetName = `[S-57] ${dataset.name}`;
+      featureCount = dataset.features.length;
+      spatialCount = dataset.spatialRecords.size;
+      stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
     }
 
-    const parseMs = Math.round(t1 - t0);
-    const geoMs = Math.round(t2 - t1);
-
-    info.textContent = `${dataset.name} | ${dataset.features.length} features | ${dataset.spatialRecords.size} spatial records`;
-    stats.textContent = `Parse: ${parseMs}ms | GeoJSON: ${geoMs}ms`;
+    info.textContent = `${datasetName} | ${featureCount} features | ${spatialCount} spatial records`;
 
     computeBounds();
     dropzone.classList.add('hidden');
