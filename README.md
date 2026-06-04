@@ -1,8 +1,12 @@
 # s57-parser
 
+[![CI](https://github.com/devladpopov/s57-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/devladpopov/s57-parser/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+
 Pure TypeScript parser for **S-57** and **S-101** marine navigational charts with **S-52** symbology rendering in the browser.
 
-Zero dependencies. Works in Node.js, Bun, and browsers.
+Zero runtime dependencies. Works in Node.js, Bun, and browsers. **105 tests.**
 
 ## Packages
 
@@ -184,6 +188,33 @@ applyUpdate(base, update002Buffer);   // .002 file
 ## Test Data
 
 Download free NOAA ENC charts from [charts.noaa.gov](https://charts.noaa.gov/ENCs/ENCs.shtml) (S-57 .000 files, ~782 MB total).
+
+Place files in the `test-data/` directory for integration tests.
+
+## Development
+
+```bash
+# Install dependencies
+bun install
+
+# Run all tests (105 tests across 7 packages)
+bun test
+
+# Build all packages
+bun run build
+
+# Run demo viewer
+bun run demo/serve.ts
+```
+
+## Contributing
+
+Contributions welcome. Areas that need help:
+
+- WebGL renderer for large charts (millions of coordinates)
+- S-63 encryption/decryption support
+- Additional S-101 test data validation
+- Performance optimization for mobile browsers
 
 ## License
 
