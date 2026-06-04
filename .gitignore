@@ -17,3 +17,6 @@ main-memory.md
 SOUL.md
 CHECKPOINT.md
 test-data/
+demo/dist/
+demo-*.png
+debug.ts

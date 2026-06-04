@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Run tests
+        run: bun test
+
+      - name: Type check
+        run: |
+          cd packages/iso8211 && bun run build
+          cd ../s57 && bun run build
+          cd ../s101 && bun run build
+          cd ../s52-render && bun run build
