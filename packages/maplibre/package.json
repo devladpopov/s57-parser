@@ -1,7 +1,7 @@
 {
-  "name": "@s57-parser/s101",
+  "name": "@s57-parser/maplibre",
   "version": "0.1.0",
-  "description": "S-101 ENC data model, parser, and GeoJSON conversion (S-100 framework)",
+  "description": "MapLibre GL JS plugin for S-57/S-101 marine chart rendering with S-52 symbology",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,9 +20,15 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@s57-parser/iso8211": "workspace:*"
+    "@s57-parser/s57": "workspace:*",
+    "@s57-parser/s101": "workspace:*",
+    "@s57-parser/s52-render": "workspace:*"
+  },
+  "peerDependencies": {
+    "maplibre-gl": "^4.0.0 || ^5.0.0"
   },
   "devDependencies": {
+    "maplibre-gl": "^5.5.0",
     "typescript": "^5.8.0"
   }
 }
