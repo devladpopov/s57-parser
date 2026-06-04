@@ -6,7 +6,7 @@
 
 Pure TypeScript parser for **S-57** and **S-101** marine navigational charts with **S-52** symbology rendering in the browser.
 
-Zero runtime dependencies. Works in Node.js, Bun, and browsers. **105 tests.**
+Zero runtime dependencies. Works in Node.js, Bun, and browsers. **127 tests.**
 
 ## Packages
 
@@ -117,6 +117,33 @@ const layer = new S57CanvasLayer('enc-overlay', buffer);
 map.addLayer(layer);
 ```
 
+### Typed feature access
+
+```typescript
+import { parseS57, typedFeatures, filterByClass } from '@s57-parser/s57';
+import type { Light, DepthArea } from '@s57-parser/s57';
+
+const dataset = parseS57(buffer);
+const typed = typedFeatures(dataset.features);
+
+// Filter by object class with full type narrowing
+const lights = filterByClass(typed, 'LIGHTS');
+for (const light of lights) {
+  // light is Light — litchr, sigper, sectr1, sectr2 are typed
+  console.log(`${light.name}: ${light.litchr} period=${light.sigper}s`);
+}
+
+const depths = filterByClass(typed, 'DEPARE');
+for (const area of depths) {
+  // area is DepthArea — drval1, drval2 are typed numbers
+  console.log(`Depth: ${area.drval1}–${area.drval2}m`);
+}
+```
+
+15 object classes supported: `DEPARE`, `DEPCNT`, `SOUNDG`, `COALNE`, `LNDARE`,
+`LIGHTS`, `BCNCAR`, `BCNLAT`, `BOYCAR`, `BOYLAT`, `BOYSAW`, `BOYSPP`,
+`OBSTRN`, `WRECKS`, `UWTROC`, `RESARE`, `BRIDGE`, `LNDMRK`, `ACHARE`.
+
 ### Apply incremental updates
 
 ```typescript
@@ -136,6 +163,8 @@ applyUpdate(base, update002Buffer);   // .002 file
 - Both `b15` (suffix) and `B(40)` (parenthesized) binary field notations
 
 **S-57 Parser**
+- Typed feature API: 15 object classes with parsed attributes (`DepthArea`, `Light`, `Buoy`, etc.)
+- Attribute catalogue with IHO standard ATTL codes
 - Feature and spatial record extraction
 - Chain-node topology resolution (VRPT edge endpoints)
 - Coordinate scaling (COMF/SOMF)
@@ -197,7 +226,7 @@ Place files in the `test-data/` directory for integration tests.
 # Install dependencies
 bun install
 
-# Run all tests (105 tests across 7 packages)
+# Run all tests (127 tests across 8 packages)
 bun test
 
 # Build all packages

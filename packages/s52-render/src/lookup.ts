@@ -7,6 +7,8 @@
  * depth-based coloring for DEPARE.
  */
 
+import { ATTL } from '@s57-parser/s57';
+
 export type SymbolType = 'area' | 'line' | 'point' | 'text';
 
 export interface RenderInstruction {
@@ -184,7 +186,7 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
   [OBJL.DEPCNT, {
     type: 'line', stroke: 'DEPSC', strokeWidth: 0.5,
     priority: 3, description: 'Depth contour',
-    textAttl: 168, textColor: 'DEPSC', textSize: 9,
+    textAttl: ATTL.VALDCO, textColor: 'DEPSC', textSize: 9,
     textFormat: 'depthContour',
   }],
 
@@ -193,7 +195,7 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     type: 'point', fill: 'SNDG1', radius: 1.5,
     shape: 'circle', priority: 6,
     description: 'Sounding',
-    textAttl: 174, textColor: 'SNDG1', textSize: 8,
+    textAttl: ATTL.VALSOU, textColor: 'SNDG1', textSize: 8,
     textFormat: 'depth', textOffsetY: -4,
   }],
 
@@ -365,22 +367,8 @@ export const DEFAULT_INSTRUCTION: RenderInstruction = {
   priority: 1, description: 'Unknown object',
 };
 
-/** Common S-57 ATTL codes used for text labels and conditional symbology */
-export const ATTL = {
-  DRVAL1: 87,   // Depth range value 1
-  DRVAL2: 88,   // Depth range value 2
-  OBJNAM: 116,  // Object name
-  NOBJNM: 107,  // National object name
-  VALDCO: 168,  // Value of depth contour
-  VALSOU: 174,  // Value of sounding
-  LITCHR: 84,   // Light characteristic
-  SIGPER: 85,   // Signal period
-  SECTR1: 137,  // Sector limit 1 (degrees)
-  SECTR2: 138,  // Sector limit 2 (degrees)
-  COLOUR: 75,   // Colour code
-  HEIGHT: 95,   // Height
-  VERLEN: 178,  // Vertical length (bridge clearance)
-} as const;
+// ATTL codes imported from @s57-parser/s57 (IHO S-57 standard)
+export { ATTL } from '@s57-parser/s57';
 
 /** S-52 LITCHR code to abbreviation (IHO standard) */
 const LITCHR_ABBR: Record<string, string> = {

@@ -85,8 +85,8 @@ describe('DEPARE depth-dependent coloring', () => {
 
   it('should apply conditional coloring with attributes', () => {
     const attrs = new Map<number, string>();
-    attrs.set(87, '0');  // DRVAL1
-    attrs.set(88, '3');  // DRVAL2
+    attrs.set(ATTL.DRVAL1, '0');
+    attrs.set(ATTL.DRVAL2, '3');
     const instr = lookupInstruction(OBJL.DEPARE, attrs);
     expect(instr.fill).toBe('DEPVS'); // 0-3m = very shallow
   });

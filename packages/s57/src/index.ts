@@ -19,3 +19,12 @@ export type {
 } from './types.js';
 export { GeomPrimitive, SpatialType } from './types.js';
 export type { GeoJSONFeatureCollection, GeoJSONFeature, GeoJSONGeometry } from './geojson.js';
+export { S57_ATTRIBUTES, ATTL_BY_ACRONYM, ATTL } from './attributes.js';
+export type { AttributeDef, AttrValueType } from './attributes.js';
+export { typedFeature, typedFeatures, filterByClass, OBJL } from './typed-features.js';
+export type {
+  TypedFeature, TypedFeatureBase,
+  DepthArea, DepthContour, Sounding, Coastline, LandArea,
+  Light, Beacon, Buoy, Obstruction, Wreck, UnderwaterRock,
+  RestrictedArea, Bridge, Landmark, AnchorageArea,
+} from './typed-features.js';
