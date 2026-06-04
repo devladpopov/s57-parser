@@ -1,4 +1,5 @@
 node_modules/
+*.tsbuildinfo
 dist/
 build/
 *.tgz
@@ -15,3 +16,4 @@ recent-messages.jsonl
 main-memory.md
 SOUL.md
 CHECKPOINT.md
+test-data/

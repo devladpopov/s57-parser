@@ -130,41 +130,40 @@ function buildDescriptors(ddr: ISO8211Record): Map<string, DataDescriptiveField>
 function parseDDRField(field: ISO8211Field): DataDescriptiveField | null {
   const raw = field.raw;
   // DDR field structure: [field controls] UT [field name] UT [array descriptor, format controls] FT
-  // Field controls are first bytes (length depends on leader.fieldControlLength, typically 6)
+  // DDR field area structure (ISO 8211 §7.2.2):
+  //   [6-byte field controls][field name][UT][subfield labels (sep by !)][UT][format controls][FT]
+  //
+  // The 6-byte field control prefix is always fixed-length:
+  //   byte 0: data structure code
+  //   byte 1: data type code
+  //   bytes 2-3: auxiliary controls
+  //   bytes 4-5: printable graphics
 
-  // Find first unit terminator (separates field name from labels+formats)
+  const FIELD_CONTROLS_LEN = 6;
+
+  // Find first UT — separates field name from subfield labels
   let utPos1 = -1;
   for (let i = 0; i < raw.length; i++) {
     if (raw[i] === UNIT_TERMINATOR) { utPos1 = i; break; }
   }
   if (utPos1 === -1) return null;
 
-  // Find second unit terminator
+  // Find second UT — separates subfield labels from format controls
   let utPos2 = -1;
   for (let i = utPos1 + 1; i < raw.length; i++) {
     if (raw[i] === UNIT_TERMINATOR) { utPos2 = i; break; }
   }
   if (utPos2 === -1) return null;
 
-  const fieldName = decodeASCII(raw, utPos1 + 1, utPos2);
+  // Field name is between field controls and first UT
+  const fieldName = decodeASCII(raw, FIELD_CONTROLS_LEN, utPos1).trim();
 
-  // After second UT: labels, then format controls after FT or another UT
-  const rest = decodeASCII(raw, utPos2 + 1, raw.length - 1); // exclude trailing FT
+  // Subfield labels are between first and second UT, separated by '!'
+  const labelsStr = decodeASCII(raw, utPos1 + 1, utPos2);
+  const subfieldLabels = labelsStr.split('!').filter(s => s.length > 0);
 
-  // Split labels and format controls
-  // Labels are separated by '!', format controls are in parentheses at the end
-  let labels = '';
-  let formatStr = '';
-
-  const parenIdx = rest.indexOf('(');
-  if (parenIdx !== -1) {
-    labels = rest.substring(0, parenIdx);
-    formatStr = rest.substring(parenIdx);
-  } else {
-    labels = rest;
-  }
-
-  const subfieldLabels = labels.split('!').filter(s => s.length > 0);
+  // Format controls are after second UT, before trailing FT
+  const formatStr = decodeASCII(raw, utPos2 + 1, raw.length - 1); // -1 to skip FT
   const formatControls = parseFormatControls(formatStr);
 
   return {
