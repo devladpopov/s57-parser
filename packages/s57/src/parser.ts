@@ -49,7 +49,7 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
     const vrid = fieldMap.get('VRID');
     if (vrid) {
       const spatial = parseSpatialRecord(vrid, fieldMap, comf, somf);
-      if (spatial) spatialRecords.set(spatial.rcid, spatial);
+      if (spatial) spatialRecords.set(spatialKey(spatial.rcnm, spatial.rcid), spatial);
     }
 
     // Feature Record
@@ -120,11 +120,33 @@ function parseSpatialRecord(
     }
   }
 
+  // VRPT: Vector Record Pointer — for Edges, gives start node (TOPI=1) and end node (TOPI=2)
+  let startNodeRcid: number | undefined;
+  let endNodeRcid: number | undefined;
+  if (rcnm === SpatialType.Edge) {
+    const vrpt = fieldMap.get('VRPT');
+    if (vrpt) {
+      // Each VRPT group: NAME(5), ORNT(1), USAG(1), TOPI(1), MASK(1) = 5 subfields
+      const subfields = vrpt.subfields;
+      for (let i = 0; i + 4 < subfields.length; i += 5) {
+        const namePacked = getNumericValue(subfields[i]);
+        const topi = getNumericValue(subfields[i + 3]);
+        if (namePacked != null && topi != null) {
+          const nodeRcid = Math.floor(namePacked / 256);
+          if (topi === 1) startNodeRcid = nodeRcid;
+          if (topi === 2) endNodeRcid = nodeRcid;
+        }
+      }
+    }
+  }
+
   return {
     rcid,
     rcnm: rcnm as SpatialType,
     coordinates2D,
     coordinates3D,
+    startNodeRcid,
+    endNodeRcid,
   };
 }
 
@@ -196,6 +218,11 @@ function parseFeatureRecord(
     spatialRefs,
     foid,
   };
+}
+
+/** Compound map key for spatial records: avoids RCID collisions between different RCNM types. */
+export function spatialKey(rcnm: number, rcid: number): number {
+  return rcnm * 100000 + rcid;
 }
 
 // ─── Subfield accessor helpers ────────────────────────────────────────────────

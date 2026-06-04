@@ -5,8 +5,9 @@
  * Output is standard GeoJSON FeatureCollection.
  */
 
-import type { S57Dataset, FeatureRecord, SpatialRecord, Coordinate2D } from './types.js';
+import type { S57Dataset, FeatureRecord, SpatialRecord } from './types.js';
 import { GeomPrimitive, SpatialType } from './types.js';
+import { spatialKey } from './parser.js';
 
 export interface GeoJSONFeatureCollection {
   type: 'FeatureCollection';
@@ -81,7 +82,7 @@ function resolvePoint(
   const allCoords: [number, number][] = [];
 
   for (const ref of feature.spatialRefs) {
-    const spatial = spatialRecords.get(ref.rcid);
+    const spatial = spatialRecords.get(spatialKey(ref.rcnm, ref.rcid));
     if (!spatial) continue;
 
     // Isolated/connected nodes have either 2D or 3D coords
@@ -109,10 +110,10 @@ function resolveLine(
   const coords: [number, number][] = [];
 
   for (const ref of feature.spatialRefs) {
-    const spatial = spatialRecords.get(ref.rcid);
+    const spatial = spatialRecords.get(spatialKey(ref.rcnm, ref.rcid));
     if (!spatial) continue;
 
-    const edgeCoords = coordsFromSpatial(spatial);
+    const edgeCoords = coordsFromSpatial(spatial, spatialRecords);
     if (ref.ornt === 2) edgeCoords.reverse(); // Reverse orientation
 
     // Avoid duplicating connecting nodes
@@ -139,10 +140,10 @@ function resolveArea(
   const interiorRings: [number, number][][] = [];
 
   for (const ref of feature.spatialRefs) {
-    const spatial = spatialRecords.get(ref.rcid);
+    const spatial = spatialRecords.get(spatialKey(ref.rcnm, ref.rcid));
     if (!spatial) continue;
 
-    const edgeCoords = coordsFromSpatial(spatial);
+    const edgeCoords = coordsFromSpatial(spatial, spatialRecords);
     if (ref.ornt === 2) edgeCoords.reverse();
 
     if (ref.usag === 2) {
@@ -167,12 +168,37 @@ function resolveArea(
   return { type: 'Polygon', coordinates: rings };
 }
 
-/** Get all coordinates from a spatial record (2D or 3D). */
-function coordsFromSpatial(spatial: SpatialRecord): [number, number][] {
-  if (spatial.coordinates2D.length > 0) {
-    return spatial.coordinates2D.map(c => [c.lon, c.lat]);
-  }
-  return spatial.coordinates3D.map(c => [c.lon, c.lat]);
+/**
+ * Get full coordinate sequence from a spatial record.
+ *
+ * For Edges: prepend start connected node and append end connected node,
+ * so the edge geometry is complete and edges chain without gaps.
+ */
+function coordsFromSpatial(
+  spatial: SpatialRecord,
+  spatialRecords: Map<number, SpatialRecord>
+): [number, number][] {
+  const intermediate: [number, number][] =
+    spatial.coordinates2D.length > 0
+      ? spatial.coordinates2D.map(c => [c.lon, c.lat])
+      : spatial.coordinates3D.map(c => [c.lon, c.lat]);
+
+  if (spatial.rcnm !== SpatialType.Edge) return intermediate;
+
+  // Resolve endpoint nodes (ConnectedNode records hold the junction coordinate)
+  const startNode = spatial.startNodeRcid != null
+    ? spatialRecords.get(spatialKey(SpatialType.ConnectedNode, spatial.startNodeRcid)) : undefined;
+  const endNode = spatial.endNodeRcid != null
+    ? spatialRecords.get(spatialKey(SpatialType.ConnectedNode, spatial.endNodeRcid)) : undefined;
+
+  const startCoord = startNode?.coordinates2D[0];
+  const endCoord = endNode?.coordinates2D[0];
+
+  const coords: [number, number][] = [...intermediate];
+  if (startCoord) coords.unshift([startCoord.lon, startCoord.lat]);
+  if (endCoord) coords.push([endCoord.lon, endCoord.lat]);
+
+  return coords;
 }
 
 /** Ensure ring is closed (first and last point identical). */

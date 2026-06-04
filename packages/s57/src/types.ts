@@ -19,7 +19,7 @@ export interface S57Dataset {
   somf: number;
   /** All feature records */
   features: FeatureRecord[];
-  /** All spatial records, keyed by RCID */
+  /** All spatial records, keyed by compound key (rcnm * 100000 + rcid) */
   spatialRecords: Map<number, SpatialRecord>;
 }
 
@@ -81,6 +81,10 @@ export interface SpatialRecord {
   coordinates2D: Coordinate2D[];
   /** 3D coordinates (sounding points) */
   coordinates3D: Coordinate3D[];
+  /** For Edge records: RCID of the start connected node (VRPT TOPI=1) */
+  startNodeRcid?: number;
+  /** For Edge records: RCID of the end connected node (VRPT TOPI=2) */
+  endNodeRcid?: number;
 }
 
 export enum SpatialType {
