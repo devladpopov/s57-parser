@@ -1,0 +1,20 @@
+{
+  "name": "s57-parser",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open-source JS/TS parser for S-57/S-101 marine navigational charts with S-52 symbology rendering",
+  "license": "MIT",
+  "author": "Vladislav Popov <vlad@studyqa.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devladpopov/s57-parser.git"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "clean": "bun run --filter '*' clean"
+  }
+}

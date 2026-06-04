@@ -1,0 +1,21 @@
+{
+  "name": "@s57-parser/cli",
+  "version": "0.1.0",
+  "description": "CLI tool for inspecting S-57/ISO 8211 files",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "s57": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@s57-parser/iso8211": "workspace:*",
+    "@s57-parser/s57": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}

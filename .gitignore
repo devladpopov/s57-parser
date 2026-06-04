@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+*.tgz
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+coverage/
+.nyc_output/
+.planning/
+.playwright-mcp/
+recent-messages.jsonl
+main-memory.md
+SOUL.md
+CHECKPOINT.md
