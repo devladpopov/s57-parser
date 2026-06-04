@@ -198,10 +198,20 @@ function parseFormatControls(str: string): FormatControl[] {
       const width = parseInt(match[3] || match[4] || '0', 10);
 
       if (type === 'b' || type === 'B') {
-        // Binary: b12 means unsigned(1) 2-byte, b24 means signed(2) 4-byte
-        const widthStr = match[3] || match[4] || '';
-        const signedness = widthStr.length >= 2 ? parseInt(widthStr[0], 10) : 1;
-        const byteWidth = widthStr.length >= 2 ? parseInt(widthStr.slice(1), 10) : parseInt(widthStr, 10);
+        // Two notations exist:
+        //   b12 = suffix form: digit1=signedness(1=unsigned,2=signed), rest=byte width → unsigned 2 bytes
+        //   B(40) = parenthesized form: width in BITS, always unsigned
+        let signedness = 1;
+        let byteWidth = 1;
+        if (match[3]) {
+          // Parenthesized: B(40) means 40 bits = 5 bytes, unsigned
+          byteWidth = Math.ceil(parseInt(match[3], 10) / 8);
+        } else if (match[4]) {
+          // Suffix: b15 → signedness=1, byteWidth=5; b24 → signedness=2, byteWidth=4
+          const widthStr = match[4];
+          signedness = widthStr.length >= 2 ? parseInt(widthStr[0], 10) : 1;
+          byteWidth = widthStr.length >= 2 ? parseInt(widthStr.slice(1), 10) : parseInt(widthStr, 10);
+        }
         for (let i = 0; i < repeat; i++) {
           controls.push({ type: 'b', width: byteWidth, signedness });
         }

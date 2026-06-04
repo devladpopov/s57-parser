@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>S-57 Chart Viewer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 12px 20px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 16px; font-weight: 600; color: #e94560; }
+    #info { font-size: 13px; color: #888; }
+    #stats { margin-left: auto; font-size: 12px; color: #666; }
+    main { flex: 1; position: relative; overflow: hidden; }
+    canvas { width: 100%; height: 100%; display: block; }
+    #dropzone {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(26, 26, 46, 0.95); z-index: 10; transition: opacity 0.3s;
+    }
+    #dropzone.hidden { opacity: 0; pointer-events: none; }
+    #dropzone.dragover { background: rgba(233, 69, 96, 0.15); }
+    .drop-content {
+      text-align: center; padding: 60px; border: 2px dashed #0f3460; border-radius: 16px; max-width: 500px;
+    }
+    .drop-content h2 { font-size: 22px; margin-bottom: 12px; color: #e94560; }
+    .drop-content p { font-size: 14px; color: #888; line-height: 1.6; }
+    .drop-content label {
+      display: inline-block; margin-top: 20px; padding: 10px 24px; background: #e94560;
+      color: white; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500;
+    }
+    .drop-content label:hover { background: #d63a52; }
+    input[type=file] { display: none; }
+    #loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(26,26,46,0.9); z-index: 20; }
+    #loading.active { display: flex; }
+    #loading span { font-size: 18px; color: #e94560; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>S-57 Chart Viewer</h1>
+    <span id="info">Drop an .000 file to view</span>
+    <span id="stats"></span>
+  </header>
+  <main>
+    <div id="dropzone">
+      <div class="drop-content">
+        <h2>S-57 ENC Viewer</h2>
+        <p>Drop an S-57 chart file (.000) here<br>or click to browse</p>
+        <label>
+          Choose .000 file
+          <input type="file" id="fileInput" accept=".000">
+        </label>
+        <p style="margin-top: 16px; font-size: 12px; color: #555">
+          Free test data: NOAA ENC charts from charts.noaa.gov
+        </p>
+      </div>
+    </div>
+    <div id="loading"><span>Parsing chart...</span></div>
+    <canvas id="chart"></canvas>
+  </main>
+  <script type="module" src="./dist/viewer.js"></script>
+</body>
+</html>
