@@ -18,6 +18,20 @@ jobs:
 
       - run: bun install
 
+      - name: Cache NOAA test data
+        id: cache-test-data
+        uses: actions/cache@v4
+        with:
+          path: test-data/US5MA19M
+          key: noaa-us5ma19m-v1
+
+      - name: Download NOAA test chart
+        if: steps.cache-test-data.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p test-data/US5MA19M
+          curl -sL https://charts.noaa.gov/ENCs/US5MA19M.zip -o /tmp/US5MA19M.zip
+          unzip -o -q /tmp/US5MA19M.zip -d test-data/US5MA19M
+
       - name: Run tests
         run: bun test
 

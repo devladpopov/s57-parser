@@ -3,9 +3,10 @@ import { readFileSync } from 'fs';
 import { parseS57 } from '../src/parser.js';
 import { applyUpdate } from '../src/update.js';
 import { toGeoJSON } from '../src/geojson.js';
+import { join } from 'path';
 
-const BASE_PATH = 'C:/Users/Vlad/Projects/s57-parser/test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.000';
-const UPDATE_PATH = 'C:/Users/Vlad/Projects/s57-parser/test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.001';
+const BASE_PATH = join(import.meta.dir, '../../../test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.000');
+const UPDATE_PATH = join(import.meta.dir, '../../../test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.001');
 
 function loadBuffer(path: string): ArrayBuffer {
   const buf = readFileSync(path);

@@ -3,8 +3,9 @@ import { readFileSync } from 'fs';
 import { parseS57 } from '../src/parser.js';
 import { toGeoJSON } from '../src/geojson.js';
 import { GeomPrimitive, SpatialType } from '../src/types.js';
+import { join } from 'path';
 
-const ENC_PATH = 'C:/Users/Vlad/Projects/s57-parser/test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.000';
+const ENC_PATH = join(import.meta.dir, '../../../test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.000');
 
 describe('S-57 parser — dataset metadata', () => {
   let dataset: ReturnType<typeof parseS57>;
