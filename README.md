@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 
+**[Live Demo](https://devladpopov.github.io/s57-parser/)** — parse a real NOAA chart in the browser. No server, no GDAL.
+
 Pure TypeScript parser for **S-57** and **S-101** marine navigational charts with **S-52** symbology rendering in the browser.
 
 Zero runtime dependencies. Works in Node.js, Bun, and browsers. **127 tests.**
@@ -18,6 +20,7 @@ Zero runtime dependencies. Works in Node.js, Bun, and browsers. **127 tests.**
 | `@s57-parser/s52-render` | S-52 Canvas2D renderer (IHO symbology, 3 palettes) |
 | `@s57-parser/leaflet` | Leaflet plugin with S-52 canvas overlay |
 | `@s57-parser/maplibre` | MapLibre GL JS plugin (GeoJSON source + canvas layer) |
+| `@s57-parser/cli` | CLI tool: parse and inspect S-57/S-101 files |
 
 ## Quick Start
 
