@@ -53,12 +53,42 @@ fileInput.addEventListener('change', () => {
   if (file) loadFile(file);
 });
 
+document.getElementById('sampleBtn')?.addEventListener('click', loadSample);
+
+// ─── Display mode buttons ────────────────────────────────────────────────────
+
+for (const btn of document.querySelectorAll<HTMLButtonElement>('.mode-btn')) {
+  btn.addEventListener('click', () => {
+    displayMode = btn.dataset.mode as DisplayMode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    render();
+  });
+}
+
 async function loadFile(file: File) {
+  const arrayBuffer = await file.arrayBuffer();
+  await loadBuffer(arrayBuffer, file.name);
+}
+
+async function loadSample() {
   loading.classList.add('active');
-  info.textContent = `Loading ${file.name}...`;
+  info.textContent = 'Downloading sample chart...';
+  try {
+    const resp = await fetch('./charts/US5MA12M.000');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    await loadBuffer(arrayBuffer, 'US5MA12M.000');
+  } catch (err) {
+    info.textContent = `Error: ${(err as Error).message}`;
+    loading.classList.remove('active');
+  }
+}
+
+async function loadBuffer(arrayBuffer: ArrayBuffer, name: string) {
+  loading.classList.add('active');
+  info.textContent = `Loading ${name}...`;
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
     const t0 = performance.now();
 
     // Auto-detect S-57 vs S-101 format
@@ -239,6 +269,8 @@ document.addEventListener('keydown', (e) => {
     const modes: DisplayMode[] = ['DAY_BRIGHT', 'DUSK', 'NIGHT'];
     const idx = modes.indexOf(displayMode);
     displayMode = modes[(idx + 1) % modes.length];
+    document.querySelectorAll<HTMLButtonElement>('.mode-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.mode === displayMode));
     render();
   }
 });

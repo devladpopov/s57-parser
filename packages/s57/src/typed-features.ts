@@ -461,7 +461,7 @@ function buildAnchorageArea(f: FeatureRecord): AnchorageArea {
 
 // ─── OBJL -> builder dispatch ─────────────────────────
 
-const BUILDERS: ReadonlyMap<number, (f: FeatureRecord) => TypedFeature> = new Map([
+const BUILDERS: ReadonlyMap<number, (f: FeatureRecord) => TypedFeature> = new Map<number, (f: FeatureRecord) => TypedFeature>([
   [OBJL.DEPARE, buildDepthArea],
   [OBJL.DEPCNT, buildDepthContour],
   [OBJL.SOUNDG, buildSounding],

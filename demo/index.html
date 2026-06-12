@@ -33,13 +33,34 @@
     #loading { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(26,26,46,0.9); z-index: 20; }
     #loading.active { display: flex; }
     #loading span { font-size: 18px; color: #e94560; }
+    #modes { display: flex; gap: 4px; }
+    .mode-btn {
+      padding: 4px 12px; font-size: 12px; border: 1px solid #0f3460; border-radius: 6px;
+      background: transparent; color: #888; cursor: pointer;
+    }
+    .mode-btn:hover { color: #e0e0e0; }
+    .mode-btn.active { background: #0f3460; color: #e0e0e0; }
+    #gh-link { font-size: 12px; color: #888; text-decoration: none; }
+    #gh-link:hover { color: #e94560; }
+    .sample-btn {
+      display: inline-block; margin-top: 12px; padding: 10px 24px; background: transparent;
+      color: #e94560; border: 1px solid #e94560; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 500;
+    }
+    .sample-btn:hover { background: rgba(233, 69, 96, 0.15); }
   </style>
 </head>
 <body>
   <header>
     <h1>S-57 Chart Viewer</h1>
     <span id="info">Drop an .000 file to view</span>
+    <div id="modes">
+      <button class="mode-btn active" data-mode="DAY_BRIGHT">Day</button>
+      <button class="mode-btn" data-mode="DUSK">Dusk</button>
+      <button class="mode-btn" data-mode="NIGHT">Night</button>
+    </div>
     <span id="stats"></span>
+    <a id="gh-link" href="https://github.com/devladpopov/s57-parser" target="_blank" rel="noopener">GitHub</a>
   </header>
   <main>
     <div id="dropzone">
@@ -50,8 +71,11 @@
           Choose .000 file
           <input type="file" id="fileInput" accept=".000">
         </label>
+        <br>
+        <button class="sample-btn" id="sampleBtn">Load sample: Boston Harbor (NOAA US5MA12M)</button>
         <p style="margin-top: 16px; font-size: 12px; color: #555">
-          Free test data: NOAA ENC charts from charts.noaa.gov
+          Free test data: NOAA ENC charts from charts.noaa.gov<br>
+          Parsed entirely in your browser. No server, no GDAL.
         </p>
       </div>
     </div>

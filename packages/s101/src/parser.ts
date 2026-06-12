@@ -107,9 +107,25 @@ export function isS101(buffer: ArrayBuffer): boolean {
     for (const rec of iso.records) {
       for (const field of rec.fields) {
         if (field.tag === 'DSID') {
-          // S-100 datasets have PRSP (Product Specification) field
+          // S-57 DSID carries STED (S-57 edition, e.g. "03.1") and EXPP —
+          // neither exists in the S-100 data model. Note: PRSP exists in
+          // BOTH formats (numeric enum in S-57, spec string in S-100),
+          // so it cannot be used alone as an S-101 marker.
+          if (field.subfields.some(s => s.label === 'STED' || s.label === 'EXPP')) {
+            return false;
+          }
+
+          // S-100 product specification string, e.g. "INT.IHO.S-101.1.0"
           const prsp = field.subfields.find(s => s.label === 'PRSP');
-          if (prsp) return true;
+          if (prsp && prsp.type === 'string' && prsp.value.toUpperCase().includes('101')) {
+            return true;
+          }
+
+          // Product specification number/name subfield (S-100)
+          const psdn = field.subfields.find(s => s.label === 'PSDN');
+          if (psdn && psdn.type === 'string' && psdn.value.toUpperCase().includes('101')) {
+            return true;
+          }
 
           // Or check DSNM for S-101 pattern
           const dsnm = field.subfields.find(s => s.label === 'DSNM');
@@ -118,9 +134,9 @@ export function isS101(buffer: ArrayBuffer): boolean {
             if (name.includes('S101') || name.includes('S-101')) return true;
           }
 
-          // S-57 DSID has DSTR (data structure) field with value 2 (chain-node)
-          const dstr = field.subfields.find(s => s.label === 'DSTR');
-          if (dstr) return false; // S-57 marker
+          // DSID present but no S-57 markers and no S-101 spec string:
+          // treat string-typed PRSP as S-100 indicator
+          if (prsp && prsp.type === 'string') return true;
 
           return false;
         }

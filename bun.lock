@@ -52,6 +52,7 @@
         "@s57-parser/s57": "workspace:*",
       },
       "devDependencies": {
+        "@types/geojson": "^7946.0.16",
         "maplibre-gl": "^5.5.0",
         "typescript": "^5.8.0",
       },
