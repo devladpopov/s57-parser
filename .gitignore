@@ -20,3 +20,11 @@ test-data/
 demo/dist/
 demo-*.png
 debug.ts
+
+# Internal project files (not for public repo)
+CLAUDE.md
+topic-memory.md
+RESEARCH.md
+VISION.md
+drafts/
+transcripts/
