@@ -3,6 +3,25 @@
   "version": "0.1.0",
   "description": "MapLibre GL JS plugin for S-57/S-101 marine chart rendering with S-52 symbology",
   "license": "MIT",
+  "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
+  "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/maplibre#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devladpopov/s57-parser.git",
+    "directory": "packages/maplibre"
+  },
+  "bugs": {
+    "url": "https://github.com/devladpopov/s57-parser/issues"
+  },
+  "keywords": [
+    "maplibre",
+    "maplibre-gl",
+    "s-57",
+    "s-101",
+    "marine",
+    "nautical-chart",
+    "enc"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +32,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "bun test",

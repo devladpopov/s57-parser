@@ -3,6 +3,24 @@
   "version": "0.1.0",
   "description": "Pure TypeScript ISO 8211 binary format parser",
   "license": "MIT",
+  "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
+  "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/iso8211#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devladpopov/s57-parser.git",
+    "directory": "packages/iso8211"
+  },
+  "bugs": {
+    "url": "https://github.com/devladpopov/s57-parser/issues"
+  },
+  "keywords": [
+    "iso8211",
+    "iso-8211",
+    "parser",
+    "binary",
+    "ddf",
+    "s-57"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +31,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "bun test",

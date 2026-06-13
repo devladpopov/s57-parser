@@ -3,6 +3,26 @@
   "version": "0.1.0",
   "description": "S-52 symbology renderer for Canvas2D/WebGL",
   "license": "MIT",
+  "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
+  "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/s52-render#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devladpopov/s57-parser.git",
+    "directory": "packages/s52-render"
+  },
+  "bugs": {
+    "url": "https://github.com/devladpopov/s57-parser/issues"
+  },
+  "keywords": [
+    "s-52",
+    "s52",
+    "symbology",
+    "marine",
+    "chart-rendering",
+    "canvas",
+    "webgl",
+    "ecdis"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +33,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "bun test",

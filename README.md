@@ -1,6 +1,7 @@
 # s57-parser
 
 [![CI](https://github.com/devladpopov/s57-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/devladpopov/s57-parser/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@s57-parser/s57.svg)](https://www.npmjs.com/package/@s57-parser/s57)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 
@@ -248,6 +249,12 @@ Contributions welcome. Areas that need help:
 - Additional S-101 test data validation
 - Performance optimization for mobile browsers
 
+## Author
+
+Built by **Vladislav Popov** — [vladislavpopov.ru](https://vladislavpopov.ru) · [GitHub @devladpopov](https://github.com/devladpopov)
+
+Questions, integration help, or commercial/consulting inquiries: open an [issue](https://github.com/devladpopov/s57-parser/issues) or reach me at vlad@alumni.york.ac.uk.
+
 ## License
 
-MIT
+MIT © Vladislav Popov

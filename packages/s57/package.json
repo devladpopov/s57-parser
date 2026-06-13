@@ -3,6 +3,26 @@
   "version": "0.1.0",
   "description": "S-57 ENC data model, topology, and GeoJSON conversion",
   "license": "MIT",
+  "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
+  "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/s57#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devladpopov/s57-parser.git",
+    "directory": "packages/s57"
+  },
+  "bugs": {
+    "url": "https://github.com/devladpopov/s57-parser/issues"
+  },
+  "keywords": [
+    "s-57",
+    "s57",
+    "enc",
+    "marine",
+    "nautical-chart",
+    "geojson",
+    "iho",
+    "ecdis"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,7 +33,9 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "bun test",

@@ -3,6 +3,24 @@
   "version": "0.1.0",
   "description": "CLI tool for inspecting S-57/ISO 8211 files",
   "license": "MIT",
+  "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
+  "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/devladpopov/s57-parser.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/devladpopov/s57-parser/issues"
+  },
+  "keywords": [
+    "s-57",
+    "iso8211",
+    "cli",
+    "enc",
+    "marine",
+    "nautical-chart"
+  ],
   "type": "module",
   "bin": {
     "s57": "./dist/index.js"
