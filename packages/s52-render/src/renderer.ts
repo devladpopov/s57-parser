@@ -105,6 +105,14 @@ export function renderChart(
   }
 }
 
+/** Average of a coordinate ring, used to place a symbol on non-point geometry. */
+function ringCentroid(coords: [number, number][]): [number, number] | null {
+  if (!coords.length) return null;
+  let cx = 0, cy = 0;
+  for (const c of coords) { cx += c[0]; cy += c[1]; }
+  return [cx / coords.length, cy / coords.length];
+}
+
 /** Axis-aligned bounding box overlap test. */
 function boxesOverlap(
   a: { x0: number; y0: number; x1: number; y1: number },
@@ -128,10 +136,23 @@ function renderFeature(
       for (const coord of geom.coordinates) drawSymbol(ctx, coord, instr, view, mode);
       break;
     case 'LineString':
-      drawLine(ctx, geom.coordinates, instr, view, mode);
+      if (instr.type === 'point') {
+        const c = ringCentroid(geom.coordinates);
+        if (c) drawSymbol(ctx, c, instr, view, mode);
+      } else {
+        drawLine(ctx, geom.coordinates, instr, view, mode);
+      }
       break;
     case 'Polygon':
-      drawPolygon(ctx, geom.coordinates, instr, view, mode);
+      // A point-symbology instruction (e.g. a buoy) attached to polygon
+      // geometry must NOT flood-fill the polygon — that paints huge saturated
+      // blobs. Draw the symbol at the polygon centroid instead.
+      if (instr.type === 'point') {
+        const c = ringCentroid(geom.coordinates[0] ?? []);
+        if (c) drawSymbol(ctx, c, instr, view, mode);
+      } else {
+        drawPolygon(ctx, geom.coordinates, instr, view, mode);
+      }
       break;
     case 'GeometryCollection':
       for (const g of geom.geometries) renderFeature(ctx, g, instr, view, mode);

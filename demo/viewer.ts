@@ -26,6 +26,9 @@ const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 
 let geojson: GeoJSONFeatureCollection | null = null;
 let bounds = { minLon: 0, maxLon: 0, minLat: 0, maxLat: 0 };
+// One representative coordinate per feature, used to auto-frame the view on the
+// dense core of the chart instead of on outlier coverage polygons.
+let featurePoints: [number, number][] = [];
 let panX = 0, panY = 0, zoom = 1;
 // Longitude compression factor (cos of mid-latitude) so 1° lon and 1° lat
 // occupy the correct relative width — otherwise the chart is stretched
@@ -168,6 +171,14 @@ function computeBounds() {
     }
   }
 
+  function firstCoord(c: unknown): [number, number] | null {
+    if (!Array.isArray(c)) return null;
+    if (typeof c[0] === 'number') return c as [number, number];
+    for (const x of c) { const r = firstCoord(x); if (r) return r; }
+    return null;
+  }
+
+  featurePoints = [];
   for (const f of geojson.features) {
     if (!f.geometry) continue;
     const geom = f.geometry as { coordinates?: unknown; geometries?: GeoJSONGeometry[] };
@@ -175,6 +186,10 @@ function computeBounds() {
     if (geom.geometries) geom.geometries.forEach(g => {
       if ('coordinates' in g) scanCoords((g as { coordinates: unknown }).coordinates);
     });
+    const gc = geom.coordinates
+      ?? (geom.geometries?.[0] as { coordinates?: unknown } | undefined)?.coordinates;
+    const p = firstCoord(gc);
+    if (p) featurePoints.push(p);
   }
 
   bounds = { minLon, maxLon, minLat, maxLat };
@@ -194,18 +209,39 @@ function resizeCanvas() {
 
 function resetView() {
   const { w, h } = canvasCSSSize();
-  const pad = 0.05;
-  const midLat = (bounds.minLat + bounds.maxLat) / 2;
-  kLon = Math.cos((midLat * Math.PI) / 180) || 1;
-  const dLon = (bounds.maxLon - bounds.minLon || 1) * kLon;
-  const dLat = bounds.maxLat - bounds.minLat || 1;
+  const pad = 0.08;
 
-  const scaleX = w / (dLon * (1 + 2 * pad));
-  const scaleY = h / (dLat * (1 + 2 * pad));
-  zoom = Math.min(scaleX, scaleY);
+  // Frame on the dense core of the chart, not its outliers. A few coverage /
+  // meta polygons can span far beyond the actual cartographic data; fitting
+  // their full extent shrinks the real chart to a useless strip. Use the
+  // 5th–95th percentile of per-feature points and a zoom between "fit" and
+  // "fill" (geometric mean) so the chart reads as a full-screen nautical view.
+  const lons = featurePoints.map(p => p[0]).sort((a, b) => a - b);
+  const lats = featurePoints.map(p => p[1]).sort((a, b) => a - b);
 
-  panX = w / 2 - ((bounds.minLon + bounds.maxLon) / 2) * zoom * kLon;
-  panY = h / 2 + midLat * zoom;
+  if (lons.length < 2) {
+    const midLat = (bounds.minLat + bounds.maxLat) / 2;
+    kLon = Math.cos((midLat * Math.PI) / 180) || 1;
+    const dLon = (bounds.maxLon - bounds.minLon || 1) * kLon;
+    const dLat = bounds.maxLat - bounds.minLat || 1;
+    zoom = Math.min(w / (dLon * (1 + 2 * pad)), h / (dLat * (1 + 2 * pad)));
+    panX = w / 2 - ((bounds.minLon + bounds.maxLon) / 2) * zoom * kLon;
+    panY = h / 2 + midLat * zoom;
+    return;
+  }
+
+  const q = (arr: number[], p: number) => arr[Math.floor((arr.length - 1) * p)];
+  const cLon = q(lons, 0.5), cLat = q(lats, 0.5);
+  kLon = Math.cos((cLat * Math.PI) / 180) || 1;
+  const coreLon = (q(lons, 0.95) - q(lons, 0.05)) * kLon || 1e-4;
+  const coreLat = (q(lats, 0.95) - q(lats, 0.05)) || 1e-4;
+
+  const zoomFit = Math.min(w * (1 - pad) / coreLon, h * (1 - pad) / coreLat);
+  const zoomFill = Math.max(w * (1 - pad) / coreLon, h * (1 - pad) / coreLat);
+  zoom = Math.sqrt(zoomFit * zoomFill);
+
+  panX = w / 2 - cLon * zoom * kLon;
+  panY = h / 2 + cLat * zoom;
 }
 
 // ─── Coordinate transform (lon/lat → canvas pixels) ─────────────────────────

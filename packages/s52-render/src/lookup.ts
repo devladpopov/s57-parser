@@ -317,14 +317,15 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
   }],
 
   // ─── Meta objects (lower priority) ───────────────────
+  // Coverage / quality boundaries carry no cartographic fill or line in
+  // S-52; drawing their outlines produced a bold "frame" around the data
+  // that users mistook for a fixed viewport. Render nothing.
   [OBJL.M_COVR, {
-    type: 'area', stroke: 'CHGRD', strokeWidth: 0.3,
-    fillAlpha: 0, priority: 0,
+    type: 'area', fillAlpha: 0, priority: 0,
     description: 'Coverage area',
   }],
   [OBJL.M_QUAL, {
-    type: 'area', stroke: 'CHGRD', strokeWidth: 0.2,
-    fillAlpha: 0, dashPattern: [3, 3], priority: 0,
+    type: 'area', fillAlpha: 0, priority: 0,
     description: 'Quality of data',
   }],
   [OBJL.M_NPUB, {
