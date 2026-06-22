@@ -87,16 +87,30 @@ export function renderChart(
     }
   }
 
-  // Pass 4: text labels (topmost layer)
+  // Pass 4: text labels (topmost layer).
+  // Declutter: place labels greedily from highest display priority to lowest,
+  // skipping any that fall outside the viewport or overlap an already-placed
+  // label. Without this, a zoomed-out chart paints thousands of overlapping
+  // strings into an unreadable black mass.
   if (showLabels) {
-    for (const feature of sorted) {
+    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const feature = sorted[i];
       if (!feature.geometry) continue;
       const objl = feature.properties.OBJL as number;
       const attrs = feature.properties._attributes as Map<number, string> | undefined;
       const instr = lookupInstruction(objl, attrs);
-      renderTextLabel(ctx, feature, instr, attrs, view, mode);
+      placeTextLabel(ctx, feature, instr, attrs, view, mode, width, height, placed);
     }
   }
+}
+
+/** Axis-aligned bounding box overlap test. */
+function boxesOverlap(
+  a: { x0: number; y0: number; x1: number; y1: number },
+  b: { x0: number; y0: number; x1: number; y1: number }
+): boolean {
+  return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 }
 
 function renderFeature(
@@ -374,13 +388,16 @@ function drawSectorLight(
 
 // ─── Text labels ────────────────────────────────────────────────────────────
 
-function renderTextLabel(
+function placeTextLabel(
   ctx: CanvasRenderingContext2D,
   feature: GeoJSONFeature,
   instr: RenderInstruction,
   attrs: Map<number, string> | undefined,
   view: ViewTransform,
-  mode: DisplayMode
+  mode: DisplayMode,
+  width: number,
+  height: number,
+  placed: { x0: number; y0: number; x1: number; y1: number }[]
 ): void {
   if (!feature.geometry) return;
   if (!attrs) return;
@@ -415,12 +432,31 @@ function renderTextLabel(
   const size = instr.textSize ?? 8;
   const color = instr.textColor ? resolveColor(instr.textColor, mode) : resolveColor('CHBLK', mode);
   const offsetY = instr.textOffsetY ?? 0;
+  const align = instr.textAlign ?? 'center';
 
   ctx.font = `${size}px sans-serif`;
-  ctx.textAlign = instr.textAlign ?? 'center';
+
+  // Compute label bounding box for culling + collision avoidance
+  const w = ctx.measureText(text).width;
+  const cy = pos.y + offsetY;
+  let x0 = pos.x;
+  if (align === 'center') x0 = pos.x - w / 2;
+  else if (align === 'right') x0 = pos.x - w;
+  const box = { x0, y0: cy - size / 2, x1: x0 + w, y1: cy + size / 2 };
+
+  // Cull labels whose box lies entirely outside the viewport
+  if (box.x1 < 0 || box.x0 > width || box.y1 < 0 || box.y0 > height) return;
+
+  // Skip labels that collide with an already-placed one
+  for (const p of placed) {
+    if (boxesOverlap(box, p)) return;
+  }
+  placed.push(box);
+
+  ctx.textAlign = align;
   ctx.textBaseline = 'middle';
   ctx.fillStyle = rgbToCSS(color);
-  ctx.fillText(text, pos.x, pos.y + offsetY);
+  ctx.fillText(text, pos.x, cy);
 }
 
 /** Get a suitable label position for a geometry. */

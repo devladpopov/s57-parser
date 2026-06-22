@@ -27,6 +27,10 @@ const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 let geojson: GeoJSONFeatureCollection | null = null;
 let bounds = { minLon: 0, maxLon: 0, minLat: 0, maxLat: 0 };
 let panX = 0, panY = 0, zoom = 1;
+// Longitude compression factor (cos of mid-latitude) so 1° lon and 1° lat
+// occupy the correct relative width — otherwise the chart is stretched
+// horizontally (≈35% too wide at Boston's latitude).
+let kLon = 1;
 let isDragging = false, lastX = 0, lastY = 0;
 let displayMode: DisplayMode = 'DAY_BRIGHT';
 
@@ -191,20 +195,22 @@ function resizeCanvas() {
 function resetView() {
   const { w, h } = canvasCSSSize();
   const pad = 0.05;
-  const dLon = bounds.maxLon - bounds.minLon || 1;
+  const midLat = (bounds.minLat + bounds.maxLat) / 2;
+  kLon = Math.cos((midLat * Math.PI) / 180) || 1;
+  const dLon = (bounds.maxLon - bounds.minLon || 1) * kLon;
   const dLat = bounds.maxLat - bounds.minLat || 1;
 
   const scaleX = w / (dLon * (1 + 2 * pad));
   const scaleY = h / (dLat * (1 + 2 * pad));
   zoom = Math.min(scaleX, scaleY);
 
-  panX = w / 2 - ((bounds.minLon + bounds.maxLon) / 2) * zoom;
-  panY = h / 2 + ((bounds.minLat + bounds.maxLat) / 2) * zoom;
+  panX = w / 2 - ((bounds.minLon + bounds.maxLon) / 2) * zoom * kLon;
+  panY = h / 2 + midLat * zoom;
 }
 
 // ─── Coordinate transform (lon/lat → canvas pixels) ─────────────────────────
 
-function toPixelX(lon: number): number { return lon * zoom + panX; }
+function toPixelX(lon: number): number { return lon * zoom * kLon + panX; }
 function toPixelY(lat: number): number { return -lat * zoom + panY; }
 
 // ─── Rendering via S-52 ─────────────────────────────────────────────────────
