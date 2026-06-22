@@ -30,6 +30,10 @@ let bounds = { minLon: 0, maxLon: 0, minLat: 0, maxLat: 0 };
 // dense core of the chart instead of on outlier coverage polygons.
 let featurePoints: [number, number][] = [];
 let panX = 0, panY = 0, zoom = 1;
+// Smallest allowed zoom: the level at which the chart's dense core just fills
+// the viewport. Zooming out past this would only reveal empty no-data margins,
+// so the wheel handler clamps to it.
+let minZoom = 0;
 // Longitude compression factor (cos of mid-latitude) so 1° lon and 1° lat
 // occupy the correct relative width — otherwise the chart is stretched
 // horizontally (≈35% too wide at Boston's latitude).
@@ -209,13 +213,7 @@ function resizeCanvas() {
 
 function resetView() {
   const { w, h } = canvasCSSSize();
-  const pad = 0.08;
 
-  // Frame on the dense core of the chart, not its outliers. A few coverage /
-  // meta polygons can span far beyond the actual cartographic data; fitting
-  // their full extent shrinks the real chart to a useless strip. Use the
-  // 5th–95th percentile of per-feature points and a zoom between "fit" and
-  // "fill" (geometric mean) so the chart reads as a full-screen nautical view.
   const lons = featurePoints.map(p => p[0]).sort((a, b) => a - b);
   const lats = featurePoints.map(p => p[1]).sort((a, b) => a - b);
 
@@ -224,21 +222,31 @@ function resetView() {
     kLon = Math.cos((midLat * Math.PI) / 180) || 1;
     const dLon = (bounds.maxLon - bounds.minLon || 1) * kLon;
     const dLat = bounds.maxLat - bounds.minLat || 1;
-    zoom = Math.min(w / (dLon * (1 + 2 * pad)), h / (dLat * (1 + 2 * pad)));
+    minZoom = Math.min(w / dLon, h / dLat);
+    zoom = minZoom;
     panX = w / 2 - ((bounds.minLon + bounds.maxLon) / 2) * zoom * kLon;
     panY = h / 2 + midLat * zoom;
     return;
   }
 
+  // Dense core = 5th–95th percentile of feature points. This excludes outlier
+  // coverage / meta polygons that span far beyond the real cartographic data
+  // and would otherwise shrink the chart to a thin strip.
   const q = (arr: number[], p: number) => arr[Math.floor((arr.length - 1) * p)];
-  const cLon = q(lons, 0.5), cLat = q(lats, 0.5);
+  const loLon = q(lons, 0.05), hiLon = q(lons, 0.95);
+  const loLat = q(lats, 0.05), hiLat = q(lats, 0.95);
+  const cLon = (loLon + hiLon) / 2, cLat = (loLat + hiLat) / 2;
   kLon = Math.cos((cLat * Math.PI) / 180) || 1;
-  const coreLon = (q(lons, 0.95) - q(lons, 0.05)) * kLon || 1e-4;
-  const coreLat = (q(lats, 0.95) - q(lats, 0.05)) || 1e-4;
+  const coreLon = (hiLon - loLon) * kLon || 1e-4;
+  const coreLat = (hiLat - loLat) || 1e-4;
 
-  const zoomFit = Math.min(w * (1 - pad) / coreLon, h * (1 - pad) / coreLat);
-  const zoomFill = Math.max(w * (1 - pad) / coreLon, h * (1 - pad) / coreLat);
-  zoom = Math.sqrt(zoomFit * zoomFill);
+  // FILL the viewport with the core (crop the longer axis) instead of fitting
+  // the whole extent — for a wide coastal chart, fitting leaves the data as a
+  // thin strip with empty margins. The fill zoom is also the minimum zoom:
+  // zooming out past it only reveals no-data margins, so the wheel handler
+  // clamps to it. Centre on the core midpoint so the filled axis has no gaps.
+  minZoom = Math.max(w / coreLon, h / coreLat);
+  zoom = minZoom;
 
   panX = w / 2 - cLon * zoom * kLon;
   panY = h / 2 + cLat * zoom;
@@ -291,14 +299,21 @@ canvas.addEventListener('mouseup', () => {
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  const factor = e.deltaY > 0 ? 0.9 : 1.1;
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
 
+  // Clamp zoom-out at minZoom so the chart can never shrink below a screen-fill;
+  // beyond that there is only empty no-data space. Anchor the zoom on the cursor
+  // using the factor actually applied after clamping.
+  const desired = zoom * (e.deltaY > 0 ? 0.9 : 1.1);
+  const newZoom = Math.max(desired, minZoom);
+  const factor = newZoom / zoom;
+  if (factor === 1) return;
+
   panX = mx - (mx - panX) * factor;
   panY = my - (my - panY) * factor;
-  zoom *= factor;
+  zoom = newZoom;
 
   render();
 }, { passive: false });
