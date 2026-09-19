@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOAA ENC Chart Catalog — S-57 Viewer</title>
+  <meta name="description" content="Browse and download thousands of free NOAA S-57 ENC nautical chart cells. Open any cell in a browser-based S-52 viewer.">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; }
+    header { padding: 12px 20px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    header h1 { font-size: 16px; font-weight: 600; color: #e94560; }
+    .nav-link { font-size: 12px; color: #888; text-decoration: none; margin-left: auto; }
+    .nav-link:hover { color: #e94560; }
+    #gh-link { font-size: 12px; color: #888; text-decoration: none; }
+    #gh-link:hover { color: #e94560; }
+    .controls { padding: 12px 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: #16213e; border-bottom: 1px solid #0f3460; }
+    input[type=search], select {
+      padding: 8px 12px; font-size: 13px; background: #1a1a2e; color: #e0e0e0;
+      border: 1px solid #0f3460; border-radius: 6px;
+    }
+    input[type=search] { min-width: 260px; }
+    #count { font-size: 12px; color: #888; margin-left: auto; }
+    main { flex: 1; overflow: auto; padding: 0 20px 40px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #23233f; white-space: nowrap; }
+    th { position: sticky; top: 0; background: #16213e; color: #aaa; font-weight: 600; cursor: default; }
+    td.title { white-space: normal; color: #cfcfcf; max-width: 420px; }
+    td.id { font-family: ui-monospace, monospace; color: #e94560; }
+    .band { font-size: 11px; padding: 1px 7px; border-radius: 10px; background: #0f3460; color: #cfd8ff; }
+    a.dl { color: #e0e0e0; text-decoration: none; border: 1px solid #0f3460; padding: 3px 9px; border-radius: 6px; }
+    a.dl:hover { background: #0f3460; }
+    button.open { color: #e94560; background: transparent; border: 1px solid #e94560; padding: 3px 9px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    button.open:hover { background: rgba(233,69,96,0.15); }
+    #status { padding: 40px; text-align: center; color: #888; }
+    .note { padding: 10px 20px; font-size: 12px; color: #777; }
+    .note b { color: #999; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>NOAA ENC Chart Catalog</h1>
+    <span id="src" style="font-size:12px;color:#888"></span>
+    <a class="nav-link" href="./index.html">← Viewer</a>
+    <a id="gh-link" href="https://github.com/devladpopov/s57-parser" target="_blank" rel="noopener">GitHub</a>
+  </header>
+  <div class="controls">
+    <input type="search" id="q" placeholder="Search by cell id, name, or state (e.g. Boston, US5MA12M, MA)">
+    <select id="band">
+      <option value="">All usage bands</option>
+      <option value="1">1 · Overview</option>
+      <option value="2">2 · General</option>
+      <option value="3">3 · Coastal</option>
+      <option value="4">4 · Approach</option>
+      <option value="5">5 · Harbour</option>
+      <option value="6">6 · Berthing</option>
+    </select>
+    <span id="count"></span>
+  </div>
+  <p class="note">
+    Free official NOAA charts. <b>Download</b> gives you the exchange-set zip (always works);
+    drop it into the <a href="./index.html" style="color:#e94560">viewer</a> to render it.
+    <b>Open</b> tries to load it directly (may be blocked by NOAA's CORS policy, in which case download then drop).
+    Not for navigation.
+  </p>
+  <main>
+    <div id="status">Loading catalog…</div>
+    <table id="tbl" hidden>
+      <thead>
+        <tr>
+          <th>Cell</th><th>Band</th><th>Title</th><th>Scale</th><th>States</th>
+          <th>Size</th><th>Updated</th><th>Ed.</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+  <script type="module" src="./dist/catalog.js"></script>
+</body>
+</html>

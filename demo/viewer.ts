@@ -5,12 +5,15 @@
  */
 
 import { parseS57 } from '../packages/s57/src/parser.js';
+import { applyUpdate } from '../packages/s57/src/update.js';
 import { toGeoJSON as toGeoJSON57 } from '../packages/s57/src/geojson.js';
 import type { GeoJSONFeatureCollection, GeoJSONGeometry } from '../packages/s57/src/geojson.js';
 import { parseS101, isS101 } from '../packages/s101/src/parser.js';
 import { toGeoJSON as toGeoJSON101 } from '../packages/s101/src/geojson.js';
 import { renderChart } from '../packages/s52-render/src/renderer.js';
 import type { DisplayMode } from '../packages/s52-render/src/colors.js';
+import { assembleExchangeSet, unzipExchangeSet, type ChartFile } from './exchange.js';
+import { exportGeoJSON, exportPNG, exportPDF } from './export.js';
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 
@@ -21,10 +24,13 @@ const loading = document.getElementById('loading')!;
 const info = document.getElementById('info')!;
 const stats = document.getElementById('stats')!;
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
+const exportBar = document.getElementById('exportBar');
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
 let geojson: GeoJSONFeatureCollection | null = null;
+// Short cell name (e.g. "US5MA12M"), used for export filenames.
+let chartStem = 'chart';
 let bounds = { minLon: 0, maxLon: 0, minLat: 0, maxLat: 0 };
 // One representative coordinate per feature, used to auto-frame the view on the
 // dense core of the chart instead of on outlier coverage polygons.
@@ -55,16 +61,28 @@ dropzone.addEventListener('dragleave', () => {
 dropzone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropzone.classList.remove('dragover');
-  const file = e.dataTransfer?.files[0];
-  if (file) loadFile(file);
+  const files = e.dataTransfer?.files;
+  if (files && files.length) loadFiles(Array.from(files));
 });
 
 fileInput.addEventListener('change', () => {
-  const file = fileInput.files?.[0];
-  if (file) loadFile(file);
+  const files = fileInput.files;
+  if (files && files.length) loadFiles(Array.from(files));
 });
 
 document.getElementById('sampleBtn')?.addEventListener('click', loadSample);
+
+// ─── Export buttons (GeoJSON / PNG / PDF) ────────────────────────────────────
+
+document.getElementById('exportGeojson')?.addEventListener('click', () => {
+  if (geojson) exportGeoJSON(geojson, `${chartStem}.geojson`);
+});
+document.getElementById('exportPng')?.addEventListener('click', () => {
+  exportPNG(canvas, `${chartStem}.png`);
+});
+document.getElementById('exportPdf')?.addEventListener('click', () => {
+  exportPDF(canvas, `${chartStem}.pdf`);
+});
 
 // ─── Display mode buttons ────────────────────────────────────────────────────
 
@@ -76,9 +94,34 @@ for (const btn of document.querySelectorAll<HTMLButtonElement>('.mode-btn')) {
   });
 }
 
-async function loadFile(file: File) {
-  const arrayBuffer = await file.arrayBuffer();
-  await loadBuffer(arrayBuffer, file.name);
+function stemOf(name: string): string {
+  const base = name.split(/[\\/]/).pop() ?? name;
+  return base.replace(/\.(zip|\d{3})$/i, '') || 'chart';
+}
+
+// Read dropped/selected files into chart files, expanding any .zip archives
+// (NOAA exchange sets) into their contained cell + update files.
+async function loadFiles(fileList: File[]) {
+  loading.classList.add('active');
+  info.textContent = 'Reading files...';
+  try {
+    const chartFiles: ChartFile[] = [];
+    let label = fileList[0]?.name ?? 'chart';
+    for (const f of fileList) {
+      const buf = await f.arrayBuffer();
+      if (/\.zip$/i.test(f.name)) {
+        chartFiles.push(...unzipExchangeSet(buf));
+        label = f.name;
+      } else {
+        chartFiles.push({ name: f.name, buffer: buf });
+      }
+    }
+    await loadChartFiles(chartFiles, label);
+  } catch (err) {
+    info.textContent = `Error: ${(err as Error).message}`;
+    console.error(err);
+    loading.classList.remove('active');
+  }
 }
 
 async function loadSample() {
@@ -88,28 +131,32 @@ async function loadSample() {
     const resp = await fetch('./charts/US5MA12M.000');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const arrayBuffer = await resp.arrayBuffer();
-    await loadBuffer(arrayBuffer, 'US5MA12M.000');
+    await loadChartFiles([{ name: 'US5MA12M.000', buffer: arrayBuffer }], 'US5MA12M.000');
   } catch (err) {
     info.textContent = `Error: ${(err as Error).message}`;
     loading.classList.remove('active');
   }
 }
 
-async function loadBuffer(arrayBuffer: ArrayBuffer, name: string) {
+// Assemble an exchange set (base cell + ordered updates), parse it, apply any
+// S-57 updates, convert to GeoJSON, then frame and render.
+async function loadChartFiles(files: ChartFile[], label: string) {
   loading.classList.add('active');
-  info.textContent = `Loading ${name}...`;
+  info.textContent = `Loading ${label}...`;
 
   try {
-    const t0 = performance.now();
+    const set = assembleExchangeSet(files);
+    if (!set) throw new Error('No base .000 cell found in the dropped files');
+    chartStem = stemOf(set.base.name);
 
-    // Auto-detect S-57 vs S-101 format
-    const s101 = isS101(arrayBuffer);
+    const t0 = performance.now();
+    const s101 = isS101(set.base.buffer);
     let datasetName: string;
     let featureCount: number;
     let spatialCount: number;
 
     if (s101) {
-      const dataset = parseS101(arrayBuffer);
+      const dataset = parseS101(set.base.buffer);
       const t1 = performance.now();
       geojson = toGeoJSON101(dataset) as GeoJSONFeatureCollection;
       const t2 = performance.now();
@@ -124,7 +171,8 @@ async function loadBuffer(arrayBuffer: ArrayBuffer, name: string) {
       spatialCount = dataset.spatialRecords.size;
       stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
     } else {
-      const dataset = parseS57(arrayBuffer);
+      let dataset = parseS57(set.base.buffer);
+      for (const u of set.updates) dataset = applyUpdate(dataset, u.buffer);
       const t1 = performance.now();
       geojson = toGeoJSON57(dataset);
       const t2 = performance.now();
@@ -134,7 +182,8 @@ async function loadBuffer(arrayBuffer: ArrayBuffer, name: string) {
         if (feat) geojson.features[i].properties._attributes = feat.attributes;
       }
 
-      datasetName = `[S-57] ${dataset.name}`;
+      const upd = set.updates.length ? ` +${set.updates.length} update(s)` : '';
+      datasetName = `[S-57] ${dataset.name}${upd}`;
       featureCount = dataset.features.length;
       spatialCount = dataset.spatialRecords.size;
       stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
@@ -144,6 +193,7 @@ async function loadBuffer(arrayBuffer: ArrayBuffer, name: string) {
 
     computeBounds();
     dropzone.classList.add('hidden');
+    exportBar?.classList.remove('hidden');
     resizeCanvas();
     resetView();
     render();
@@ -343,3 +393,31 @@ window.addEventListener('resize', () => {
 });
 
 canvas.style.cursor = 'grab';
+
+// ─── Deep-link: ?zip=<noaa cell url> from the catalog ────────────────────────
+
+async function tryOpenFromQuery() {
+  const zipUrl = new URLSearchParams(location.search).get('zip');
+  if (!zipUrl) return;
+  loading.classList.add('active');
+  info.textContent = 'Fetching chart from NOAA...';
+  try {
+    const resp = await fetch(zipUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await resp.arrayBuffer();
+    const name = zipUrl.split('/').pop() ?? 'chart.zip';
+    await loadChartFiles(unzipExchangeSet(buf), name);
+  } catch {
+    // NOAA does not send CORS headers, so a cross-origin fetch is blocked.
+    // Fall back to the honest download-then-drop instruction.
+    loading.classList.remove('active');
+    info.textContent = 'Could not fetch directly (NOAA CORS). Download the zip, then drop it here.';
+    const p = document.querySelector('#dropzone .drop-content p');
+    const fname = zipUrl.split('/').pop();
+    if (p) p.innerHTML =
+      `NOAA blocked the direct fetch. ` +
+      `<a href="${zipUrl}" download style="color:#e94560">Download ${fname}</a>, then drop it here.`;
+  }
+}
+
+tryOpenFromQuery();
