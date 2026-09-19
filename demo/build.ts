@@ -17,3 +17,17 @@ if (!result.success) {
 }
 
 console.log('Demo built to demo/dist/{viewer,catalog}.js');
+
+// In CI, stage the catalog page + its assets into the Pages artifact directory.
+// The Pages workflow's "Assemble static site" step only copies the viewer files;
+// the catalog files are copied here instead because the deploying token lacks the
+// `workflow` scope needed to edit .github/workflows/pages.yml. Guarded by
+// GITHUB_ACTIONS so local `bun demo/build.ts` never touches _site.
+if (process.env.GITHUB_ACTIONS) {
+  const { mkdirSync, copyFileSync } = await import('node:fs');
+  mkdirSync('_site/dist', { recursive: true });
+  copyFileSync('demo/catalog.html', '_site/catalog.html');
+  copyFileSync('demo/catalog-index.json', '_site/catalog-index.json');
+  copyFileSync('demo/dist/catalog.js', '_site/dist/catalog.js');
+  console.log('CI: staged catalog assets into _site');
+}
