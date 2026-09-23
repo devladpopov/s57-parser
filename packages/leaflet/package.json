@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/leaflet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Leaflet plugin for S-57/S-101 marine chart overlay with S-52 symbology",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",

@@ -35,7 +35,7 @@
     },
     "packages/leaflet": {
       "name": "@s57-parser/leaflet",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@s57-parser/s101": "workspace:*",
         "@s57-parser/s52-render": "workspace:*",
@@ -52,7 +52,7 @@
     },
     "packages/maplibre": {
       "name": "@s57-parser/maplibre",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@s57-parser/s101": "workspace:*",
         "@s57-parser/s52-render": "workspace:*",
@@ -79,7 +79,7 @@
     },
     "packages/s52-render": {
       "name": "@s57-parser/s52-render",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@s57-parser/s57": "workspace:*",
       },
