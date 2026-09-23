@@ -35,8 +35,9 @@ jobs:
       - name: Assemble static site
         run: |
           mkdir -p _site/dist _site/charts
-          cp demo/index.html _site/
-          cp demo/dist/viewer.js _site/dist/
+          cp demo/index.html demo/catalog.html demo/leaflet.html demo/maplibre.html _site/
+          cp demo/catalog-index.json _site/
+          cp demo/dist/*.js _site/dist/
           cp demo/charts/US5MA12M.000 _site/charts/
 
       - uses: actions/upload-pages-artifact@v3
