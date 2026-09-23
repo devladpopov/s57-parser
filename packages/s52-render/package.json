@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/s52-render",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "S-52 symbology renderer for Canvas2D/WebGL",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",

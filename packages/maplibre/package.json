@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/maplibre",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MapLibre GL JS plugin for S-57/S-101 marine chart rendering with S-52 symbology",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
