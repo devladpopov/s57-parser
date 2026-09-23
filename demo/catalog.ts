@@ -1,7 +1,8 @@
 /**
  * NOAA ENC catalog gallery. Loads the pre-built catalog-index.json, renders a
  * searchable table of cells, and links each to a direct NOAA download plus an
- * "Open in viewer" attempt (subject to NOAA's CORS policy).
+ * "Open in viewer" button (the viewer fetches NOAA zips through the CORS proxy
+ * in proxy/noaa-enc-worker.js).
  */
 
 interface Cell {

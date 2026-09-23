@@ -396,26 +396,36 @@ canvas.style.cursor = 'grab';
 
 // ─── Deep-link: ?zip=<noaa cell url> from the catalog ────────────────────────
 
+// charts.noaa.gov sends no CORS headers, so NOAA cell zips are fetched through
+// a small Cloudflare Worker (proxy/noaa-enc-worker.js) that adds them.
+const NOAA_ENC = /^https?:\/\/(?:www\.)?charts\.noaa\.gov\/ENCs\/([A-Z0-9]{8})\.zip$/i;
+const ENC_PROXY = 'https://s57-noaa-enc.spamaway-api.workers.dev/enc/';
+
+function corsUrl(url: string): string {
+  const m = NOAA_ENC.exec(url);
+  return m ? `${ENC_PROXY}${m[1].toUpperCase()}.zip` : url;
+}
+
 async function tryOpenFromQuery() {
   const zipUrl = new URLSearchParams(location.search).get('zip');
   if (!zipUrl) return;
   loading.classList.add('active');
   info.textContent = 'Fetching chart from NOAA...';
   try {
-    const resp = await fetch(zipUrl);
+    const resp = await fetch(corsUrl(zipUrl));
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const buf = await resp.arrayBuffer();
     const name = zipUrl.split('/').pop() ?? 'chart.zip';
     await loadChartFiles(unzipExchangeSet(buf), name);
   } catch {
-    // NOAA does not send CORS headers, so a cross-origin fetch is blocked.
-    // Fall back to the honest download-then-drop instruction.
+    // The proxy (or a non-NOAA URL without CORS) failed: fall back to the
+    // download-then-drop instruction.
     loading.classList.remove('active');
-    info.textContent = 'Could not fetch directly (NOAA CORS). Download the zip, then drop it here.';
+    info.textContent = 'Could not fetch the chart. Download the zip, then drop it here.';
     const p = document.querySelector('#dropzone .drop-content p');
     const fname = zipUrl.split('/').pop();
     if (p) p.innerHTML =
-      `NOAA blocked the direct fetch. ` +
+      `The chart could not be fetched. ` +
       `<a href="${zipUrl}" download style="color:#e94560">Download ${fname}</a>, then drop it here.`;
   }
 }
