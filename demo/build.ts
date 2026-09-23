@@ -3,7 +3,7 @@
  * files for the browser.
  */
 const result = await Bun.build({
-  entrypoints: ['./demo/viewer.ts', './demo/catalog.ts'],
+  entrypoints: ['./demo/viewer.ts', './demo/catalog.ts', './demo/leaflet-demo.ts'],
   outdir: './demo/dist',
   target: 'browser',
   format: 'esm',
@@ -16,7 +16,7 @@ if (!result.success) {
   process.exit(1);
 }
 
-console.log('Demo built to demo/dist/{viewer,catalog}.js');
+console.log('Demo built to demo/dist/{viewer,catalog,leaflet-demo}.js');
 
 // In CI, stage the catalog page + its assets into the Pages artifact directory.
 // The Pages workflow's "Assemble static site" step only copies the viewer files;
@@ -29,5 +29,7 @@ if (process.env.GITHUB_ACTIONS) {
   copyFileSync('demo/catalog.html', '_site/catalog.html');
   copyFileSync('demo/catalog-index.json', '_site/catalog-index.json');
   copyFileSync('demo/dist/catalog.js', '_site/dist/catalog.js');
-  console.log('CI: staged catalog assets into _site');
+  copyFileSync('demo/leaflet.html', '_site/leaflet.html');
+  copyFileSync('demo/dist/leaflet-demo.js', '_site/dist/leaflet-demo.js');
+  console.log('CI: staged catalog + leaflet demo assets into _site');
 }

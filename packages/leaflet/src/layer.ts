@@ -5,7 +5,7 @@
  * syncs with Leaflet's map panning and zooming.
  */
 
-import type * as L from 'leaflet';
+import L from 'leaflet';
 import type { GeoJSONFeatureCollection } from '@s57-parser/s57';
 import type { DisplayMode } from '@s57-parser/s52-render';
 import { renderChart } from '@s57-parser/s52-render';
@@ -36,16 +36,17 @@ export interface S57LayerOptions {
  * layer.addTo(map);
  * ```
  */
-export class S57Layer {
+export class S57Layer extends L.Layer {
   private _geojson: GeoJSONFeatureCollection | null = null;
   private _canvas: HTMLCanvasElement | null = null;
   private _ctx: CanvasRenderingContext2D | null = null;
-  private _map: L.Map | null = null;
+  private _lmap: L.Map | null = null;
   private _options: S57LayerOptions;
   private _format: string = '';
   private _name: string = '';
 
   constructor(data: ArrayBuffer | GeoJSONFeatureCollection, options: S57LayerOptions = {}) {
+    super();
     this._options = {
       mode: 'DAY_BRIGHT',
       opacity: 1,
@@ -91,8 +92,8 @@ export class S57Layer {
    * Called by Leaflet when the layer is added to a map.
    * Creates the canvas overlay and sets up event listeners.
    */
-  onAdd(map: L.Map): this {
-    this._map = map;
+  override onAdd(map: L.Map): this {
+    this._lmap = map;
 
     this._canvas = document.createElement('canvas');
     this._canvas.style.position = 'absolute';
@@ -109,6 +110,7 @@ export class S57Layer {
 
     map.on('moveend', this._onMoveEnd, this);
     map.on('zoomend', this._onMoveEnd, this);
+    map.on('zoomstart', this._onZoomStart, this);
     map.on('resize', this._onResize, this);
 
     this._resize();
@@ -119,9 +121,10 @@ export class S57Layer {
   /**
    * Called by Leaflet when the layer is removed from a map.
    */
-  onRemove(map: L.Map): this {
+  override onRemove(map: L.Map): this {
     map.off('moveend', this._onMoveEnd, this);
     map.off('zoomend', this._onMoveEnd, this);
+    map.off('zoomstart', this._onZoomStart, this);
     map.off('resize', this._onResize, this);
 
     if (this._canvas && this._canvas.parentNode) {
@@ -129,25 +132,24 @@ export class S57Layer {
     }
     this._canvas = null;
     this._ctx = null;
-    this._map = null;
+    this._lmap = null;
     return this;
   }
 
-  /**
-   * Add this layer to a Leaflet map.
-   * Can be used as `layer.addTo(map)` for Leaflet compatibility.
-   */
-  addTo(map: L.Map): this {
-    map.addLayer(this as unknown as L.Layer);
-    return this;
+  private _onZoomStart(): void {
+    // The canvas is not scaled during Leaflet's zoom animation; hide it until
+    // zoomend re-renders at the new scale.
+    if (this._canvas) this._canvas.style.visibility = 'hidden';
   }
-
-  private _onMoveEnd(): void { this._render(); }
+  private _onMoveEnd(): void {
+    if (this._canvas) this._canvas.style.visibility = '';
+    this._render();
+  }
   private _onResize(): void { this._resize(); this._render(); }
 
   private _resize(): void {
-    if (!this._canvas || !this._map) return;
-    const size = this._map.getSize();
+    if (!this._canvas || !this._lmap) return;
+    const size = this._lmap.getSize();
     const dpr = window.devicePixelRatio || 1;
     this._canvas.width = Math.round(size.x * dpr);
     this._canvas.height = Math.round(size.y * dpr);
@@ -156,9 +158,9 @@ export class S57Layer {
   }
 
   private _render(): void {
-    if (!this._ctx || !this._canvas || !this._map || !this._geojson) return;
+    if (!this._ctx || !this._canvas || !this._lmap || !this._geojson) return;
 
-    const map = this._map;
+    const map = this._lmap;
     const size = map.getSize();
     const dpr = window.devicePixelRatio || 1;
 
@@ -189,6 +191,7 @@ export class S57Layer {
     renderChart(this._ctx, this._geojson, { toPixelX, toPixelY }, size.x, size.y, {
       mode: this._options.mode,
       showLabels: this._options.showLabels,
+      background: false,
     });
   }
 }

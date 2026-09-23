@@ -21,6 +21,11 @@ export interface RenderOptions {
   showLabels?: boolean;
   /** Minimum zoom to show sounding labels */
   soundingLabelMinZoom?: number;
+  /**
+   * Fill the canvas with the no-data colour before drawing (default: true).
+   * Set to false when the chart is an overlay above a basemap.
+   */
+  background?: boolean;
 }
 
 export interface ViewTransform {
@@ -45,9 +50,13 @@ export function renderChart(
   const showLabels = options.showLabels !== false;
 
   // Background
-  const bg = resolveColor('NODTA', mode);
-  ctx.fillStyle = rgbToCSS(bg);
-  ctx.fillRect(0, 0, width, height);
+  if (options.background !== false) {
+    const bg = resolveColor('NODTA', mode);
+    ctx.fillStyle = rgbToCSS(bg);
+    ctx.fillRect(0, 0, width, height);
+  } else {
+    ctx.clearRect(0, 0, width, height);
+  }
 
   // Sort features by display priority (lowest first = drawn first = behind)
   const sorted = [...geojson.features].sort((a, b) => {

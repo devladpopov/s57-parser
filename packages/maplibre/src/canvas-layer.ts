@@ -120,6 +120,7 @@ export class S57CanvasLayer implements CustomLayerInterface {
     renderChart(this._ctx, this._geojson, { toPixelX, toPixelY }, w, h, {
       mode: this._options.mode,
       showLabels: this._options.showLabels,
+      background: false,
     });
   }
 

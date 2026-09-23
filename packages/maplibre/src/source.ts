@@ -6,6 +6,7 @@
  */
 
 import type { Map as MaplibreMap } from 'maplibre-gl';
+import type * as GeoJSON from 'geojson';
 import { parseS57 } from '@s57-parser/s57';
 import { toGeoJSON as toGeoJSON57 } from '@s57-parser/s57';
 import { parseS101, isS101, toGeoJSON as toGeoJSON101 } from '@s57-parser/s101';

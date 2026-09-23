@@ -7,6 +7,9 @@
       "dependencies": {
         "fflate": "^0.8.3",
       },
+      "devDependencies": {
+        "leaflet": "^1.9.4",
+      },
     },
     "packages/cli": {
       "name": "@s57-parser/cli",
