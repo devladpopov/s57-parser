@@ -236,9 +236,21 @@ bun test
 # Build all packages
 bun run build
 
-# Run demo viewer
+# Build and run the demo viewer (http://localhost:3457)
+bun demo/build.ts
 bun run demo/serve.ts
 ```
+
+### Viewer without a server
+
+`bun demo/build.ts` also writes `demo/dist/s57-viewer.html`: the whole viewer in one
+self-contained HTML file with no module scripts, so it opens straight from disk
+(`file://`) and works offline. Drag and drop a `.000` cell or a NOAA `.zip`
+exchange set onto it. A prebuilt copy is on the demo site:
+https://devladpopov.github.io/s57-parser/s57-viewer.html (save it and open locally).
+
+`demo/index.html` loads the same viewer as a classic script, so after a build it
+also works when opened from disk.
 
 ## Contributing
 

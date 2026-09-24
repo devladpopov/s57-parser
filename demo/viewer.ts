@@ -128,7 +128,14 @@ async function loadSample() {
   loading.classList.add('active');
   info.textContent = 'Downloading sample chart...';
   try {
-    const resp = await fetch('./charts/US5MA12M.000');
+    // Opened from disk (file://), or as the standalone s57-viewer.html without a
+    // charts/ folder next to it, the relative chart is unavailable: fall back to
+    // the copy on GitHub Pages, which is served with CORS headers.
+    const pagesCopy = 'https://devladpopov.github.io/s57-parser/charts/US5MA12M.000';
+    let resp = location.protocol === 'file:'
+      ? await fetch(pagesCopy)
+      : await fetch('./charts/US5MA12M.000').catch(() => null);
+    if (!resp || !resp.ok) resp = await fetch(pagesCopy);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const arrayBuffer = await resp.arrayBuffer();
     await loadChartFiles([{ name: 'US5MA12M.000', buffer: arrayBuffer }], 'US5MA12M.000');
