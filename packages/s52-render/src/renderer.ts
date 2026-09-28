@@ -11,6 +11,7 @@ import type { DisplayMode, RGB } from './colors.js';
 import { resolveColor, rgbToCSS } from './colors.js';
 import type { RenderInstruction } from './lookup.js';
 import { lookupInstruction, DEFAULT_INSTRUCTION, ATTL, formatDepth, formatLightChar, lightColorToken } from './lookup.js';
+import { SimplifiedRings, visibleAnchor } from './anchor.js';
 
 export interface RenderOptions {
   /** Display mode (default: DAY_BRIGHT) */
@@ -71,9 +72,25 @@ export function renderChart(
       Math.max(ya, yb) >= -margin && Math.min(ya, yb) <= height + margin;
   };
 
+  // Centred symbols and labels of areas go in the middle of the visible part
+  // of the polygon (S-52), so the anchor depends on the view.
+  const anchor = (it: PreparedFeature): { x: number; y: number } | null => {
+    if (!it.rings) return null;
+    const sx = Math.abs(view.toPixelX(it.maxX) - view.toPixelX(it.minX)) / ((it.maxX - it.minX) || Infinity);
+    const sy = Math.abs(view.toPixelY(it.maxY) - view.toPixelY(it.minY)) / ((it.maxY - it.minY) || Infinity);
+    const px = it.rings.at(Math.max(sx, sy)).map(r => r.map(c => [view.toPixelX(c[0]), view.toPixelY(c[1])] as [number, number]));
+    const a = visibleAnchor(px, width, height);
+    return a && { x: a[0], y: a[1] };
+  };
+
   // Pass 1: geometry (areas, lines, points)
   for (const it of items) {
     if (!visible(it, 32)) continue;
+    if (it.rings && it.instr.type === 'point') {
+      const a = anchor(it);
+      if (a) drawSymbolAt(ctx, a.x, a.y, it.instr, mode);
+      continue;
+    }
     renderFeature(ctx, it.feature.geometry!, it.instr, view, mode);
   }
 
@@ -101,7 +118,7 @@ export function renderChart(
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (!visible(it, 200)) continue;
-      placeTextLabel(ctx, it.feature, it.instr, it.attrs, view, mode, width, height, placed);
+      placeTextLabel(ctx, it, it.instr, it.attrs, view, mode, width, height, placed, anchor);
     }
   }
 }
@@ -114,6 +131,8 @@ interface PreparedFeature {
   minY: number;
   maxX: number;
   maxY: number;
+  /** Polygon rings, for placing centred symbols and labels. */
+  rings?: SimplifiedRings;
 }
 
 const prepared = new WeakMap<GeoJSONFeatureCollection, PreparedFeature[]>();
@@ -130,7 +149,8 @@ function prepare(geojson: GeoJSONFeatureCollection): PreparedFeature[] {
     const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
     extendBounds(b, (feature.geometry as { coordinates: unknown }).coordinates);
     if (b.minX > b.maxX) continue;
-    items.push({ feature, instr, attrs, ...b });
+    const rings = feature.geometry.type === 'Polygon' ? new SimplifiedRings(feature.geometry.coordinates) : undefined;
+    items.push({ feature, instr, attrs, ...b, rings });
   }
   items.sort((a, b) => a.instr.priority - b.instr.priority); // stable: keeps file order within a priority
   prepared.set(geojson, items);
@@ -222,7 +242,8 @@ function renderFeature(
     case 'Polygon':
       // A point-symbology instruction (e.g. a buoy) attached to polygon
       // geometry must NOT flood-fill the polygon — that paints huge saturated
-      // blobs. Draw the symbol at the polygon centroid instead.
+      // blobs. renderChart draws the symbol in the visible part of the polygon;
+      // this centroid fallback only covers polygons inside a GeometryCollection.
       if (instr.type === 'point') {
         const c = ringCentroid(geom.coordinates[0] ?? []);
         if (c) drawSymbol(ctx, c, instr, view, mode);
@@ -243,8 +264,16 @@ function drawSymbol(
   view: ViewTransform,
   mode: DisplayMode
 ): void {
-  const x = view.toPixelX(coord[0]);
-  const y = view.toPixelY(coord[1]);
+  drawSymbolAt(ctx, view.toPixelX(coord[0]), view.toPixelY(coord[1]), instr, mode);
+}
+
+function drawSymbolAt(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  instr: RenderInstruction,
+  mode: DisplayMode
+): void {
   const r = instr.radius ?? 2;
   const shape = instr.shape ?? 'circle';
 
@@ -498,15 +527,17 @@ function drawSectorLight(
 
 function placeTextLabel(
   ctx: CanvasRenderingContext2D,
-  feature: GeoJSONFeature,
+  it: PreparedFeature,
   instr: RenderInstruction,
   attrs: Map<number, string> | undefined,
   view: ViewTransform,
   mode: DisplayMode,
   width: number,
   height: number,
-  placed: LabelGrid
+  placed: LabelGrid,
+  anchor: (it: PreparedFeature) => { x: number; y: number } | null
 ): void {
+  const feature = it.feature;
   if (!feature.geometry) return;
   if (!attrs) return;
 
@@ -534,7 +565,7 @@ function placeTextLabel(
   if (!text) return;
 
   // Find label position
-  const pos = labelPosition(feature.geometry, view);
+  const pos = it.rings ? anchor(it) : labelPosition(feature.geometry, view);
   if (!pos) return;
 
   const size = instr.textSize ?? 8;
@@ -565,7 +596,7 @@ function placeTextLabel(
   ctx.fillText(text, pos.x, cy);
 }
 
-/** Get a suitable label position for a geometry. */
+/** Label position for point and line geometry; polygons use the visible-part anchor. */
 function labelPosition(
   geom: GeoJSONGeometry,
   view: ViewTransform
@@ -582,16 +613,6 @@ function labelPosition(
       if (geom.coordinates.length === 0) return null;
       const mid = geom.coordinates[Math.floor(geom.coordinates.length / 2)];
       return { x: view.toPixelX(mid[0]), y: view.toPixelY(mid[1]) };
-    }
-    case 'Polygon': {
-      // Label at centroid of exterior ring
-      if (!geom.coordinates[0] || geom.coordinates[0].length === 0) return null;
-      const ring = geom.coordinates[0];
-      let cx = 0, cy = 0;
-      for (const c of ring) { cx += c[0]; cy += c[1]; }
-      cx /= ring.length;
-      cy /= ring.length;
-      return { x: view.toPixelX(cx), y: view.toPixelY(cy) };
     }
     default:
       return null;

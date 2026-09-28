@@ -12,4 +12,5 @@ export { lookupInstruction, depareColor, lightColorToken, formatDepth, formatLig
 export type { RenderInstruction, SymbolType } from './lookup.js';
 
 export { renderChart } from './renderer.js';
+export { visibleAnchor, clipRing, simplifyRing, SimplifiedRings } from './anchor.js';
 export type { RenderOptions, ViewTransform } from './renderer.js';
