@@ -58,58 +58,125 @@ export function renderChart(
     ctx.clearRect(0, 0, width, height);
   }
 
-  // Sort features by display priority (lowest first = drawn first = behind)
-  const sorted = [...geojson.features].sort((a, b) => {
-    const instrA = lookupInstruction(a.properties.OBJL as number, a.properties._attributes as Map<number, string> | undefined);
-    const instrB = lookupInstruction(b.properties.OBJL as number, b.properties._attributes as Map<number, string> | undefined);
-    return instrA.priority - instrB.priority;
-  });
+  // Priority order, lookup instructions and lon/lat bounding boxes depend only
+  // on the data, so they are computed once per feature collection and cached.
+  const items = prepare(geojson);
+
+  // Cull features whose bounding box is off screen. The margin keeps symbols,
+  // sector-light arcs and labels anchored just outside the edge.
+  const visible = (it: PreparedFeature, margin: number): boolean => {
+    const xa = view.toPixelX(it.minX), xb = view.toPixelX(it.maxX);
+    const ya = view.toPixelY(it.minY), yb = view.toPixelY(it.maxY);
+    return Math.max(xa, xb) >= -margin && Math.min(xa, xb) <= width + margin &&
+      Math.max(ya, yb) >= -margin && Math.min(ya, yb) <= height + margin;
+  };
 
   // Pass 1: geometry (areas, lines, points)
-  for (const feature of sorted) {
-    if (!feature.geometry) continue;
-    const objl = feature.properties.OBJL as number;
-    const attrs = feature.properties._attributes as Map<number, string> | undefined;
-    const instr = lookupInstruction(objl, attrs);
-    renderFeature(ctx, feature.geometry, instr, view, mode);
+  for (const it of items) {
+    if (!visible(it, 32)) continue;
+    renderFeature(ctx, it.feature.geometry!, it.instr, view, mode);
   }
 
   // Pass 2: pattern fills (on top of solid fills)
-  for (const feature of sorted) {
-    if (!feature.geometry) continue;
-    const objl = feature.properties.OBJL as number;
-    const attrs = feature.properties._attributes as Map<number, string> | undefined;
-    const instr = lookupInstruction(objl, attrs);
-    if (instr.pattern && (feature.geometry.type === 'Polygon')) {
-      drawPatternFill(ctx, (feature.geometry as { coordinates: [number, number][][] }).coordinates, instr, view, mode);
-    }
+  for (const it of items) {
+    if (!it.instr.pattern || it.feature.geometry!.type !== 'Polygon' || !visible(it, 0)) continue;
+    drawPatternFill(ctx, (it.feature.geometry as { coordinates: [number, number][][] }).coordinates, it.instr, view, mode, width, height);
   }
 
   // Pass 3: sector lights (on top of symbols)
-  for (const feature of sorted) {
-    if (!feature.geometry) continue;
-    const objl = feature.properties.OBJL as number;
-    const attrs = feature.properties._attributes as Map<number, string> | undefined;
-    const instr = lookupInstruction(objl, attrs);
-    if (instr.sectorLight && attrs && feature.geometry.type === 'Point') {
-      drawSectorLight(ctx, (feature.geometry as { coordinates: [number, number] }).coordinates, attrs, instr, view, mode);
-    }
+  for (const it of items) {
+    if (!it.instr.sectorLight || !it.attrs || it.feature.geometry!.type !== 'Point') continue;
+    if (!visible(it, (it.instr.sectorRadius ?? 20) + 8)) continue;
+    drawSectorLight(ctx, (it.feature.geometry as { coordinates: [number, number] }).coordinates, it.attrs, it.instr, view, mode);
   }
 
   // Pass 4: text labels (topmost layer).
   // Declutter: place labels greedily from highest display priority to lowest,
   // skipping any that fall outside the viewport or overlap an already-placed
   // label. Without this, a zoomed-out chart paints thousands of overlapping
-  // strings into an unreadable black mass.
+  // strings into an unreadable black mass. Placed boxes go into a coarse grid
+  // so each collision test only looks at nearby labels.
   if (showLabels) {
-    const placed: { x0: number; y0: number; x1: number; y1: number }[] = [];
-    for (let i = sorted.length - 1; i >= 0; i--) {
-      const feature = sorted[i];
-      if (!feature.geometry) continue;
-      const objl = feature.properties.OBJL as number;
-      const attrs = feature.properties._attributes as Map<number, string> | undefined;
-      const instr = lookupInstruction(objl, attrs);
-      placeTextLabel(ctx, feature, instr, attrs, view, mode, width, height, placed);
+    const placed = new LabelGrid();
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (!visible(it, 200)) continue;
+      placeTextLabel(ctx, it.feature, it.instr, it.attrs, view, mode, width, height, placed);
+    }
+  }
+}
+
+interface PreparedFeature {
+  feature: GeoJSONFeature;
+  instr: RenderInstruction;
+  attrs: Map<number, string> | undefined;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+const prepared = new WeakMap<GeoJSONFeatureCollection, PreparedFeature[]>();
+
+/** Features with geometry, sorted by display priority, with instructions and bounds. */
+function prepare(geojson: GeoJSONFeatureCollection): PreparedFeature[] {
+  const cached = prepared.get(geojson);
+  if (cached) return cached;
+  const items: PreparedFeature[] = [];
+  for (const feature of geojson.features) {
+    if (!feature.geometry) continue;
+    const attrs = feature.properties._attributes as Map<number, string> | undefined;
+    const instr = lookupInstruction(feature.properties.OBJL as number, attrs);
+    const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+    extendBounds(b, (feature.geometry as { coordinates: unknown }).coordinates);
+    if (b.minX > b.maxX) continue;
+    items.push({ feature, instr, attrs, ...b });
+  }
+  items.sort((a, b) => a.instr.priority - b.instr.priority); // stable: keeps file order within a priority
+  prepared.set(geojson, items);
+  return items;
+}
+
+function extendBounds(b: { minX: number; minY: number; maxX: number; maxY: number }, c: unknown): void {
+  if (!Array.isArray(c)) return;
+  if (typeof c[0] === 'number') {
+    const x = c[0] as number, y = c[1] as number;
+    if (x < b.minX) b.minX = x;
+    if (x > b.maxX) b.maxX = x;
+    if (y < b.minY) b.minY = y;
+    if (y > b.maxY) b.maxY = y;
+    return;
+  }
+  for (const child of c) extendBounds(b, child);
+}
+
+type Box = { x0: number; y0: number; x1: number; y1: number };
+
+/** Uniform grid of placed label boxes for fast overlap queries. */
+class LabelGrid {
+  private cells = new Map<number, Box[]>();
+  private static readonly SIZE = 64;
+
+  private keys(b: Box): number[] {
+    const s = LabelGrid.SIZE;
+    const out: number[] = [];
+    for (let gx = Math.floor(b.x0 / s); gx <= Math.floor(b.x1 / s); gx++) {
+      for (let gy = Math.floor(b.y0 / s); gy <= Math.floor(b.y1 / s); gy++) out.push(gx * 65536 + gy);
+    }
+    return out;
+  }
+
+  overlaps(b: Box): boolean {
+    for (const k of this.keys(b)) {
+      for (const p of this.cells.get(k) ?? []) if (boxesOverlap(b, p)) return true;
+    }
+    return false;
+  }
+
+  add(b: Box): void {
+    for (const k of this.keys(b)) {
+      const cell = this.cells.get(k);
+      if (cell) cell.push(b); else this.cells.set(k, [b]);
     }
   }
 }
@@ -285,7 +352,9 @@ function drawPatternFill(
   rings: [number, number][][],
   instr: RenderInstruction,
   view: ViewTransform,
-  mode: DisplayMode
+  mode: DisplayMode,
+  width: number,
+  height: number
 ): void {
   if (!instr.pattern || !instr.patternColor) return;
 
@@ -316,6 +385,15 @@ function drawPatternFill(
   }
 
   const spacing = instr.patternSpacing ?? 8;
+
+  // The clip already hides everything off screen, so only generate hatch lines
+  // over the visible part of the bounding box. Zoomed in on a large polygon
+  // this avoids thousands of invisible lines per frame.
+  minX = Math.max(minX, -spacing);
+  minY = Math.max(minY, -spacing);
+  maxX = Math.min(maxX, width + spacing);
+  maxY = Math.min(maxY, height + spacing);
+  if (minX >= maxX || minY >= maxY) { ctx.restore(); return; }
   const color = rgbToCSS(resolveColor(instr.patternColor, mode), 0.4);
 
   ctx.strokeStyle = color;
@@ -427,7 +505,7 @@ function placeTextLabel(
   mode: DisplayMode,
   width: number,
   height: number,
-  placed: { x0: number; y0: number; x1: number; y1: number }[]
+  placed: LabelGrid
 ): void {
   if (!feature.geometry) return;
   if (!attrs) return;
@@ -478,10 +556,8 @@ function placeTextLabel(
   if (box.x1 < 0 || box.x0 > width || box.y1 < 0 || box.y0 > height) return;
 
   // Skip labels that collide with an already-placed one
-  for (const p of placed) {
-    if (boxesOverlap(box, p)) return;
-  }
-  placed.push(box);
+  if (placed.overlaps(box)) return;
+  placed.add(box);
 
   ctx.textAlign = align;
   ctx.textBaseline = 'middle';

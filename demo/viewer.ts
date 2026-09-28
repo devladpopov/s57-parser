@@ -11,7 +11,7 @@ import type { GeoJSONFeatureCollection, GeoJSONGeometry } from '../packages/s57/
 import { parseS101, isS101 } from '../packages/s101/src/parser.js';
 import { toGeoJSON as toGeoJSON101 } from '../packages/s101/src/geojson.js';
 import { renderChart } from '../packages/s52-render/src/renderer.js';
-import type { DisplayMode } from '../packages/s52-render/src/colors.js';
+import { resolveColor, rgbToCSS, type DisplayMode } from '../packages/s52-render/src/colors.js';
 import { assembleExchangeSet, unzipExchangeSet, type ChartFile } from './exchange.js';
 import { exportGeoJSON, exportPNG, exportPDF } from './export.js';
 
@@ -329,6 +329,57 @@ function render() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   renderChart(ctx, geojson, { toPixelX, toPixelY }, w, h, { mode: displayMode });
+  lastFull = { panX, panY, zoom };
+  snapshot = null;
+}
+
+// ─── Interactive frames ─────────────────────────────────────────────────────
+//
+// A full S-52 render of a harbour cell takes tens of milliseconds, while the
+// mouse fires far more often than that. Rendering on every event queued work
+// faster than it could be done and the view lagged by seconds on slower
+// machines. During a drag or wheel zoom we therefore redraw at most once per
+// animation frame, and only move and scale a copy of the last full render;
+// the real render runs once the drag ends or the wheel has been idle briefly.
+
+let lastFull = { panX: 0, panY: 0, zoom: 1 };
+let snapshot: HTMLCanvasElement | null = null;
+let snapState = lastFull;
+let previewFrame = 0;
+let fullTimer: ReturnType<typeof setTimeout> | undefined;
+
+function drawPreview() {
+  if (!snapshot) {
+    snapshot = document.createElement('canvas');
+    snapshot.width = canvas.width;
+    snapshot.height = canvas.height;
+    snapshot.getContext('2d')!.drawImage(canvas, 0, 0);
+    snapState = lastFull;
+  }
+  const dpr = window.devicePixelRatio || 1;
+  const s = zoom / snapState.zoom;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = rgbToCSS(resolveColor('NODTA', displayMode));
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(s, 0, 0, s, (panX - snapState.panX * s) * dpr, (panY - snapState.panY * s) * dpr);
+  ctx.drawImage(snapshot, 0, 0);
+}
+
+function requestPreview() {
+  if (!geojson || previewFrame) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = 0;
+    drawPreview();
+  });
+}
+
+function requestFullRender(delayMs: number) {
+  clearTimeout(fullTimer);
+  fullTimer = setTimeout(() => {
+    cancelAnimationFrame(previewFrame);
+    previewFrame = 0;
+    requestAnimationFrame(render);
+  }, delayMs);
 }
 
 // ─── Pan & Zoom ──────────────────────────────────────────────────────────────
@@ -346,13 +397,17 @@ canvas.addEventListener('mousemove', (e) => {
   panY += e.clientY - lastY;
   lastX = e.clientX;
   lastY = e.clientY;
-  render();
+  requestPreview();
 });
 
-canvas.addEventListener('mouseup', () => {
+function endDrag() {
+  if (!isDragging) return;
   isDragging = false;
   canvas.style.cursor = 'grab';
-});
+  requestFullRender(0);
+}
+canvas.addEventListener('mouseup', endDrag);
+canvas.addEventListener('mouseleave', endDrag);
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
@@ -372,7 +427,8 @@ canvas.addEventListener('wheel', (e) => {
   panY = my - (my - panY) * factor;
   zoom = newZoom;
 
-  render();
+  requestPreview();
+  requestFullRender(150);
 }, { passive: false });
 
 // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
@@ -404,37 +460,79 @@ canvas.style.cursor = 'grab';
 // ─── Deep-link: ?zip=<noaa cell url> from the catalog ────────────────────────
 
 // charts.noaa.gov sends no CORS headers, so NOAA cell zips are fetched through
-// a small Cloudflare Worker (proxy/noaa-enc-worker.js) that adds them.
+// a CORS proxy. There are two with the same /enc/<CELL>.zip contract:
+// a Cloudflare Worker (proxy/noaa-enc-worker.js) and an nginx mirror on a plain
+// VPS (proxy/nginx-enc-mirror.conf). Some Russian ISPs throttle Cloudflare so a
+// download stalls after a few KB; when a transfer stops making progress we move
+// on to the next proxy, and finally offer a direct download from NOAA.
 const NOAA_ENC = /^https?:\/\/(?:www\.)?charts\.noaa\.gov\/ENCs\/([A-Z0-9]{8})\.zip$/i;
-const ENC_PROXY = 'https://s57-noaa-enc.spamaway-api.workers.dev/enc/';
+const ENC_PROXIES = [
+  'https://s57-noaa-enc.spamaway-api.workers.dev/enc/',
+  'https://enc.studyqa.com/enc/',
+];
+const STALL_MS = 6000;
 
-function corsUrl(url: string): string {
+function candidateUrls(url: string): string[] {
   const m = NOAA_ENC.exec(url);
-  return m ? `${ENC_PROXY}${m[1].toUpperCase()}.zip` : url;
+  return m ? ENC_PROXIES.map(base => `${base}${m[1].toUpperCase()}.zip`) : [url];
+}
+
+/** Fetch a URL, aborting if no bytes arrive for STALL_MS. Reports progress. */
+async function fetchWithStallTimeout(url: string, onProgress: (bytes: number) => void): Promise<ArrayBuffer> {
+  const ctrl = new AbortController();
+  let timer = setTimeout(() => ctrl.abort(), STALL_MS);
+  const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctrl.abort(), STALL_MS); };
+  try {
+    const resp = await fetch(url, { signal: ctrl.signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.body) return await resp.arrayBuffer();
+    const reader = resp.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.length;
+      onProgress(total);
+      kick();
+    }
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) { out.set(c, off); off += c.length; }
+    return out.buffer;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function tryOpenFromQuery() {
   const zipUrl = new URLSearchParams(location.search).get('zip');
   if (!zipUrl) return;
   loading.classList.add('active');
-  info.textContent = 'Fetching chart from NOAA...';
-  try {
-    const resp = await fetch(corsUrl(zipUrl));
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buf = await resp.arrayBuffer();
-    const name = zipUrl.split('/').pop() ?? 'chart.zip';
-    await loadChartFiles(unzipExchangeSet(buf), name);
-  } catch {
-    // The proxy (or a non-NOAA URL without CORS) failed: fall back to the
-    // download-then-drop instruction.
-    loading.classList.remove('active');
-    info.textContent = 'Could not fetch the chart. Download the zip, then drop it here.';
-    const p = document.querySelector('#dropzone .drop-content p');
-    const fname = zipUrl.split('/').pop();
-    if (p) p.innerHTML =
-      `The chart could not be fetched. ` +
-      `<a href="${zipUrl}" download style="color:#e94560">Download ${fname}</a>, then drop it here.`;
+  const name = zipUrl.split('/').pop() ?? 'chart.zip';
+  const urls = candidateUrls(zipUrl);
+  for (let i = 0; i < urls.length; i++) {
+    const via = urls.length > 1 ? ` (mirror ${i + 1}/${urls.length})` : '';
+    info.textContent = `Fetching ${name}${via}...`;
+    try {
+      const buf = await fetchWithStallTimeout(urls[i], bytes => {
+        info.textContent = `Fetching ${name}${via}: ${Math.round(bytes / 1024)} KB`;
+      });
+      await loadChartFiles(unzipExchangeSet(buf), name);
+      return;
+    } catch (err) {
+      console.warn(`Chart fetch failed via ${urls[i]}:`, err);
+    }
   }
+  // Every proxy failed (or a non-NOAA URL without CORS): offer a direct
+  // download and the drag-and-drop route.
+  loading.classList.remove('active');
+  info.textContent = 'Could not fetch the chart. Download the zip, then drop it here.';
+  const p = document.querySelector('#dropzone .drop-content p');
+  if (p) p.innerHTML =
+    `The chart could not be fetched. ` +
+    `<a href="${zipUrl}" download style="color:#e94560">Download ${name}</a>, then drop it here.`;
 }
 
 tryOpenFromQuery();
