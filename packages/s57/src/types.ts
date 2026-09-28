@@ -17,6 +17,8 @@ export interface S57Dataset {
   comf: number;
   /** Sounding multiplication factor (typically 10) */
   somf: number;
+  /** Compilation scale denominator from DSPM (e.g. 20000 for 1:20 000), if present */
+  cscl?: number;
   /** All feature records */
   features: FeatureRecord[];
   /** All spatial records, keyed by compound key (rcnm * 100000 + rcid) */
@@ -27,7 +29,7 @@ export interface S57Dataset {
 export interface FeatureRecord {
   /** Record ID */
   rcid: number;
-  /** Object label code (links to S-57 object catalogue, e.g. 4=AIRARE, 86=LNDARE) */
+  /** Object label code (links to S-57 object catalogue, e.g. 4=ACHARE, 71=LNDARE) */
   objl: number;
   /** Geometric primitive: 1=Point, 2=Line, 3=Area, 255=None */
   prim: GeomPrimitive;

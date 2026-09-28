@@ -25,6 +25,7 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
   let name = '';
   let comf = 10_000_000; // default
   let somf = 10;         // default
+  let cscl: number | undefined;
 
   const features: FeatureRecord[] = [];
   const spatialRecords = new Map<number, SpatialRecord>();
@@ -43,6 +44,7 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
     if (dspm) {
       comf = getSubfieldNum(dspm, 'COMF') ?? comf;
       somf = getSubfieldNum(dspm, 'SOMF') ?? somf;
+      cscl = getSubfieldNum(dspm, 'CSCL') ?? cscl;
     }
 
     // Vector Record (spatial geometry)
@@ -60,7 +62,7 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
     }
   }
 
-  return { name, comf, somf, features, spatialRecords };
+  return { name, comf, somf, cscl, features, spatialRecords };
 }
 
 /** Build a tag → field map for quick lookup within a record. */

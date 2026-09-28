@@ -109,14 +109,14 @@ export function addChartLayers(map: MaplibreMap, sourceId: string): void {
     id: `${sourceId}-navaids`,
     type: 'circle',
     source: sourceId,
-    filter: ['in', ['get', 'OBJL'], ['literal', [5, 8, 15, 17, 19, 20]]],
+    filter: ['in', ['get', 'OBJL'], ['literal', [5, 7, 14, 17, 18, 19]]],
     paint: {
       'circle-radius': 4,
       'circle-color': [
         'case',
-        ['in', ['get', 'OBJL'], ['literal', [5, 15]]], '#e6cd32', // Cardinal: yellow
-        ['in', ['get', 'OBJL'], ['literal', [17, 8]]], '#008746', // Lateral: green
-        ['==', ['get', 'OBJL'], 19], '#c83232', // Safe water: red
+        ['in', ['get', 'OBJL'], ['literal', [5, 14]]], '#e6cd32', // Cardinal: yellow
+        ['in', ['get', 'OBJL'], ['literal', [17, 7]]], '#008746', // Lateral: green
+        ['==', ['get', 'OBJL'], 18], '#c83232', // Safe water: red
         '#e6cd32', // Default: yellow
       ],
       'circle-stroke-width': 1,
@@ -147,7 +147,7 @@ export function addChartLayers(map: MaplibreMap, sourceId: string): void {
     id: `${sourceId}-dangers`,
     type: 'circle',
     source: sourceId,
-    filter: ['in', ['get', 'OBJL'], ['literal', [86, 154, 159]]],
+    filter: ['in', ['get', 'OBJL'], ['literal', [86, 153, 159]]],
     paint: {
       'circle-radius': 4,
       'circle-color': '#ff0000',

@@ -25,18 +25,34 @@ function makeFeature(objl: number, attrs: [number, string][] = []): FeatureRecor
 
 describe('S-57 attribute catalogue', () => {
   it('should have correct IHO standard ATTL codes', () => {
-    expect(ATTL.DRVAL1).toBe(84);
-    expect(ATTL.DRVAL2).toBe(85);
-    expect(ATTL.ELEVAT).toBe(87);
+    // IHO S-57 Edition 3.1 Appendix A (as in GDAL/OpenCPN s57attributes.csv).
+    expect(ATTL.CATACH).toBe(8);
+    expect(ATTL.COLOUR).toBe(75);
+    expect(ATTL.DRVAL1).toBe(87);
+    expect(ATTL.DRVAL2).toBe(88);
+    expect(ATTL.ELEVAT).toBe(90);
     expect(ATTL.HEIGHT).toBe(95);
+    expect(ATTL.INFORM).toBe(102);
     expect(ATTL.LITCHR).toBe(107);
     expect(ATTL.OBJNAM).toBe(116);
-    expect(ATTL.SIGPER).toBe(144);
+    expect(ATTL.SECTR1).toBe(136);
+    expect(ATTL.SECTR2).toBe(137);
+    expect(ATTL.SIGPER).toBe(142);
     expect(ATTL.VALDCO).toBe(174);
-    expect(ATTL.VALSOU).toBe(175);
-    expect(ATTL.VERCLR).toBe(178);
-    expect(ATTL.VERLEN).toBe(183);
-    expect(ATTL.NOBJNM).toBe(302);
+    expect(ATTL.VALSOU).toBe(179);
+    expect(ATTL.VERCLR).toBe(181);
+    expect(ATTL.VERLEN).toBe(186);
+    expect(ATTL.WATLEV).toBe(187);
+    expect(ATTL.NOBJNM).toBe(301);
+  });
+
+  it('decodes depth ranges from a real NOAA cell', async () => {
+    const { parseS57 } = await import('../src/parser.js');
+    const buf = await Bun.file(new URL('../../../demo/charts/US5MA12M.000', import.meta.url)).arrayBuffer();
+    const depare = parseS57(buf).features.filter(f => f.objl === OBJL.DEPARE);
+    expect(depare.length).toBeGreaterThan(100);
+    // Every depth area carries DRVAL1 (shallowest depth of the range).
+    expect(depare.every(f => f.attributes.has(ATTL.DRVAL1))).toBe(true);
   });
 });
 

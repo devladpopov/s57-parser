@@ -8,9 +8,9 @@
 export { resolveColor, rgbToCSS } from './colors.js';
 export type { DisplayMode, RGB, ColorToken } from './colors.js';
 
-export { lookupInstruction, depareColor, lightColorToken, formatDepth, formatLightChar, LOOKUP_TABLE, OBJL, ATTL, DEFAULT_INSTRUCTION } from './lookup.js';
+export { lookupInstruction, OBJL_NAMES, depareColor, lightColorToken, formatDepth, formatLightChar, LOOKUP_TABLE, OBJL, ATTL, DEFAULT_INSTRUCTION } from './lookup.js';
 export type { RenderInstruction, SymbolType } from './lookup.js';
 
-export { renderChart } from './renderer.js';
+export { renderChart, drawLegendSymbol } from './renderer.js';
 export { visibleAnchor, clipRing, simplifyRing, SimplifiedRings } from './anchor.js';
 export type { RenderOptions, ViewTransform } from './renderer.js';

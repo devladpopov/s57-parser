@@ -57,6 +57,29 @@
       font-size: 14px; font-weight: 500;
     }
     .sample-btn:hover { background: rgba(233, 69, 96, 0.15); }
+    .exp-btn.active { color: #e0e0e0; background: #0f3460; }
+    #legend {
+      position: absolute; top: 10px; right: 10px; bottom: 44px; width: 260px; z-index: 5;
+      display: flex; flex-direction: column; background: rgba(22, 33, 62, 0.94);
+      border: 1px solid #0f3460; border-radius: 8px; font-size: 12px;
+    }
+    #legend.hidden { display: none; }
+    #legend h3 { font-size: 13px; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #0f3460; display: flex; }
+    #legend h3 button { margin-left: auto; background: none; border: 0; color: #888; cursor: pointer; font-size: 14px; }
+    #legendList { overflow-y: auto; padding: 6px 10px; }
+    .lg-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+    .lg-row canvas { flex: none; background: #fff; border-radius: 2px; }
+    .lg-row span { flex: 1; color: #ccc; }
+    .lg-row small { color: #666; }
+    .lg-note { color: #777; margin-top: 8px; line-height: 1.4; }
+    #scale {
+      position: absolute; left: 10px; bottom: 10px; z-index: 5; padding: 4px 8px;
+      background: rgba(22, 33, 62, 0.9); border: 1px solid #0f3460; border-radius: 6px;
+      font-size: 12px; color: #ccc; display: flex; align-items: center; gap: 10px;
+    }
+    #scale.hidden { display: none; }
+    #scaleBar { display: inline-block; height: 6px; vertical-align: middle; border: 1px solid #ccc; border-top: 0; }
+    #scaleWarn { color: #f0a030; }
   </style>
 </head>
 <body>
@@ -72,6 +95,7 @@
       <button class="exp-btn" id="exportGeojson" title="Download parsed features as GeoJSON">GeoJSON</button>
       <button class="exp-btn" id="exportPng" title="Download current view as PNG">PNG</button>
       <button class="exp-btn" id="exportPdf" title="Download current view as PDF">PDF</button>
+      <button class="exp-btn" id="legendBtn" title="Show or hide the legend (L)">Legend</button>
     </div>
     <span id="stats"></span>
     <a class="nav-link" href="./catalog.html">Catalog</a>
@@ -98,6 +122,15 @@
     </div>
     <div id="loading"><span>Parsing chart...</span></div>
     <canvas id="chart"></canvas>
+    <aside id="legend" class="hidden">
+      <h3>Legend <button id="legendClose" title="Close (L)">&times;</button></h3>
+      <div id="legendList"></div>
+    </aside>
+    <div id="scale" class="hidden">
+      <span id="scaleText"></span>
+      <span><span id="scaleBar"></span> <span id="scaleBarText"></span></span>
+      <span id="scaleWarn"></span>
+    </div>
   </main>
   <script defer src="./dist/viewer.js"></script>
 </body>

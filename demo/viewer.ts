@@ -14,6 +14,8 @@ import { renderChart } from '../packages/s52-render/src/renderer.js';
 import { resolveColor, rgbToCSS, type DisplayMode } from '../packages/s52-render/src/colors.js';
 import { assembleExchangeSet, unzipExchangeSet, type ChartFile } from './exchange.js';
 import { exportGeoJSON, exportPNG, exportPDF } from './export.js';
+import { fetchEncZip } from './enc-fetch.js';
+import { renderLegend } from './legend.js';
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,14 @@ const info = document.getElementById('info')!;
 const stats = document.getElementById('stats')!;
 const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 const exportBar = document.getElementById('exportBar');
+const legendEl = document.getElementById('legend')!;
+const legendList = document.getElementById('legendList')!;
+const legendBtn = document.getElementById('legendBtn');
+const scaleEl = document.getElementById('scale')!;
+const scaleText = document.getElementById('scaleText')!;
+const scaleBar = document.getElementById('scaleBar')!;
+const scaleBarText = document.getElementById('scaleBarText')!;
+const scaleWarn = document.getElementById('scaleWarn')!;
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +50,16 @@ let panX = 0, panY = 0, zoom = 1;
 // the viewport. Zooming out past this would only reveal empty no-data margins,
 // so the wheel handler clamps to it.
 let minZoom = 0;
+// Largest allowed zoom: a display scale of 1:1000 (1 cm on screen = 10 m).
+// Harbour cells are compiled at 1:5000 and smaller, so closer than this only
+// magnifies the same lines.
+const MIN_SCALE = 1000;
+// Metres per CSS pixel at 96 dpi, and metres per degree of latitude.
+const PX_M = 0.0254 / 96;
+const DEG_M = 111_320;
+const maxZoom = DEG_M / (MIN_SCALE * PX_M);
+// Compilation scale of the loaded cell (DSPM CSCL), for the overscale warning.
+let cscl: number | undefined;
 // Longitude compression factor (cos of mid-latitude) so 1° lon and 1° lat
 // occupy the correct relative width — otherwise the chart is stretched
 // horizontally (≈35% too wide at Boston's latitude).
@@ -174,6 +194,7 @@ async function loadChartFiles(files: ChartFile[], label: string) {
       }
 
       datasetName = `[S-101] ${dataset.name}`;
+      cscl = undefined;
       featureCount = dataset.features.length;
       spatialCount = dataset.spatialRecords.size;
       stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
@@ -191,6 +212,7 @@ async function loadChartFiles(files: ChartFile[], label: string) {
 
       const upd = set.updates.length ? ` +${set.updates.length} update(s)` : '';
       datasetName = `[S-57] ${dataset.name}${upd}`;
+      cscl = dataset.cscl;
       featureCount = dataset.features.length;
       spatialCount = dataset.spatialRecords.size;
       stats.textContent = `Parse: ${Math.round(t1 - t0)}ms | GeoJSON: ${Math.round(t2 - t1)}ms`;
@@ -203,6 +225,9 @@ async function loadChartFiles(files: ChartFile[], label: string) {
     exportBar?.classList.remove('hidden');
     resizeCanvas();
     resetView();
+    legendMode = null;
+    if (localStorage.getItem('s57-legend') !== 'off' && window.innerWidth > 900) setLegend(true);
+    scaleEl.classList.remove('hidden');
     render();
   } catch (err) {
     info.textContent = `Error: ${(err as Error).message}`;
@@ -331,6 +356,49 @@ function render() {
   renderChart(ctx, geojson, { toPixelX, toPixelY }, w, h, { mode: displayMode });
   lastFull = { panX, panY, zoom };
   snapshot = null;
+  updateScale();
+  if (legendOpen && legendMode !== displayMode) {
+    renderLegend(legendList, geojson, displayMode);
+    legendMode = displayMode;
+  }
+}
+
+// ─── Legend and scale ───────────────────────────────────────────────────────
+
+let legendOpen = false;
+let legendMode: DisplayMode | null = null;
+
+function setLegend(open: boolean) {
+  legendOpen = open;
+  legendEl.classList.toggle('hidden', !open);
+  legendBtn?.classList.toggle('active', open);
+  if (open && geojson && legendMode !== displayMode) {
+    renderLegend(legendList, geojson, displayMode);
+    legendMode = displayMode;
+  }
+}
+
+function toggleLegend() {
+  setLegend(!legendOpen);
+  localStorage.setItem('s57-legend', legendOpen ? 'on' : 'off');
+}
+legendBtn?.addEventListener('click', toggleLegend);
+document.getElementById('legendClose')?.addEventListener('click', toggleLegend);
+
+/** Display scale, zoom factor, a scale bar and the overscale warning. */
+function updateScale() {
+  const mPerPx = DEG_M / zoom;
+  const denom = mPerPx / PX_M;
+  const rounded = denom >= 100_000 ? Math.round(denom / 1000) * 1000 : Math.round(denom / 10) * 10;
+  scaleText.textContent = `1:${rounded.toLocaleString('en-US')} · x${(zoom / minZoom).toFixed(1)}`;
+  // Longest 1-2-5 length that fits in 100 px.
+  let len = 10 ** Math.floor(Math.log10(mPerPx * 100));
+  for (const k of [5, 2]) if (len * k / mPerPx <= 100) { len *= k; break; }
+  scaleBar.style.width = `${Math.round(len / mPerPx)}px`;
+  scaleBarText.textContent = len >= 1000 ? `${len / 1000} km` : `${len} m`;
+  const over = cscl ? cscl / denom : 0;
+  scaleWarn.textContent = over > 1.05 ? `overscale x${over.toFixed(1)}` : '';
+  scaleWarn.title = over > 1.05 ? `Shown at a larger scale than the chart was compiled for (1:${cscl!.toLocaleString('en-US')})` : '';
 }
 
 // ─── Interactive frames ─────────────────────────────────────────────────────
@@ -363,6 +431,7 @@ function drawPreview() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(s, 0, 0, s, (panX - snapState.panX * s) * dpr, (panY - snapState.panY * s) * dpr);
   ctx.drawImage(snapshot, 0, 0);
+  updateScale();
 }
 
 function requestPreview() {
@@ -415,11 +484,14 @@ canvas.addEventListener('wheel', (e) => {
   const mx = e.clientX - rect.left;
   const my = e.clientY - rect.top;
 
-  // Clamp zoom-out at minZoom so the chart can never shrink below a screen-fill;
-  // beyond that there is only empty no-data space. Anchor the zoom on the cursor
-  // using the factor actually applied after clamping.
-  const desired = zoom * (e.deltaY > 0 ? 0.9 : 1.1);
-  const newZoom = Math.max(desired, minZoom);
+  // Clamp zoom-out at minZoom so the chart can never shrink below a screen-fill
+  // (beyond that there is only empty no-data space) and zoom-in at maxZoom.
+  // Anchor the zoom on the cursor using the factor actually applied after
+  // clamping. The step follows deltaY, so a trackpad pinch, which sends many
+  // small deltas, zooms as smoothly as a mouse wheel's larger notches.
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+  const desired = zoom * Math.exp(-Math.max(-300, Math.min(300, dy)) * 0.001);
+  const newZoom = Math.min(Math.max(desired, minZoom), Math.max(maxZoom, minZoom));
   const factor = newZoom / zoom;
   if (factor === 1) return;
 
@@ -434,6 +506,7 @@ canvas.addEventListener('wheel', (e) => {
 // ─── Keyboard shortcuts ─────────────────────────────────────────────────────
 
 document.addEventListener('keydown', (e) => {
+  if ((e.key === 'l' || e.key === 'L') && geojson) toggleLegend();
   if (e.key === 'd' || e.key === 'D') {
     // Cycle display modes: DAY → DUSK → NIGHT → DAY
     const modes: DisplayMode[] = ['DAY_BRIGHT', 'DUSK', 'NIGHT'];
@@ -459,74 +532,20 @@ canvas.style.cursor = 'grab';
 
 // ─── Deep-link: ?zip=<noaa cell url> from the catalog ────────────────────────
 
-// charts.noaa.gov sends no CORS headers, so NOAA cell zips are fetched through
-// a CORS proxy. There are two with the same /enc/<CELL>.zip contract:
-// a Cloudflare Worker (proxy/noaa-enc-worker.js) and an nginx mirror on a plain
-// VPS (proxy/nginx-enc-mirror.conf). Some Russian ISPs throttle Cloudflare so a
-// download stalls after a few KB; when a transfer stops making progress we move
-// on to the next proxy, and finally offer a direct download from NOAA.
-const NOAA_ENC = /^https?:\/\/(?:www\.)?charts\.noaa\.gov\/ENCs\/([A-Z0-9]{8})\.zip$/i;
-const ENC_PROXIES = [
-  'https://s57-noaa-enc.spamaway-api.workers.dev/enc/',
-  'https://enc.studyqa.com/enc/',
-];
-const STALL_MS = 6000;
-
-function candidateUrls(url: string): string[] {
-  const m = NOAA_ENC.exec(url);
-  return m ? ENC_PROXIES.map(base => `${base}${m[1].toUpperCase()}.zip`) : [url];
-}
-
-/** Fetch a URL, aborting if no bytes arrive for STALL_MS. Reports progress. */
-async function fetchWithStallTimeout(url: string, onProgress: (bytes: number) => void): Promise<ArrayBuffer> {
-  const ctrl = new AbortController();
-  let timer = setTimeout(() => ctrl.abort(), STALL_MS);
-  const kick = () => { clearTimeout(timer); timer = setTimeout(() => ctrl.abort(), STALL_MS); };
-  try {
-    const resp = await fetch(url, { signal: ctrl.signal });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    if (!resp.body) return await resp.arrayBuffer();
-    const reader = resp.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      total += value.length;
-      onProgress(total);
-      kick();
-    }
-    const out = new Uint8Array(total);
-    let off = 0;
-    for (const c of chunks) { out.set(c, off); off += c.length; }
-    return out.buffer;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
+// NOAA zips are fetched through CORS proxies with a fallback, see enc-fetch.ts.
 async function tryOpenFromQuery() {
   const zipUrl = new URLSearchParams(location.search).get('zip');
   if (!zipUrl) return;
   loading.classList.add('active');
   const name = zipUrl.split('/').pop() ?? 'chart.zip';
-  const urls = candidateUrls(zipUrl);
-  for (let i = 0; i < urls.length; i++) {
-    const via = urls.length > 1 ? ` (mirror ${i + 1}/${urls.length})` : '';
-    info.textContent = `Fetching ${name}${via}...`;
-    try {
-      const buf = await fetchWithStallTimeout(urls[i], bytes => {
-        info.textContent = `Fetching ${name}${via}: ${Math.round(bytes / 1024)} KB`;
-      });
-      await loadChartFiles(unzipExchangeSet(buf), name);
-      return;
-    } catch (err) {
-      console.warn(`Chart fetch failed via ${urls[i]}:`, err);
-    }
+  try {
+    const buf = await fetchEncZip(zipUrl, text => { info.textContent = text; });
+    await loadChartFiles(unzipExchangeSet(buf), name);
+    return;
+  } catch {
+    // Every proxy failed (or a non-NOAA URL without CORS): offer a direct
+    // download and the drag-and-drop route.
   }
-  // Every proxy failed (or a non-NOAA URL without CORS): offer a direct
-  // download and the drag-and-drop route.
   loading.classList.remove('active');
   info.textContent = 'Could not fetch the chart. Download the zip, then drop it here.';
   const p = document.querySelector('#dropzone .drop-content p');

@@ -225,3 +225,17 @@ describe('pattern fill instructions', () => {
     expect(instr.pattern).toBe('cross-hatch');
   });
 });
+
+describe('OBJL codes match the IHO S-57 object catalogue', () => {
+  // Spot checks against S-57 Appendix A (same codes as GDAL/OpenCPN
+  // s57objectclasses.csv). A shifted table once drew cable areas as buoys.
+  it.each([
+    ['ACHBRT', 3], ['ACHARE', 4], ['BCNLAT', 7], ['BERTHS', 10], ['BRIDGE', 11],
+    ['BOYCAR', 14], ['BOYLAT', 17], ['BOYSAW', 18], ['BOYSPP', 19], ['DEPARE', 42],
+    ['DMPGRD', 48], ['FAIRWY', 51], ['LNDARE', 71], ['LNDMRK', 74], ['LIGHTS', 75],
+    ['OBSTRN', 86], ['PILPNT', 90], ['PILBOP', 91], ['SBDARE', 121], ['SOUNDG', 129],
+    ['TWRTPT', 152], ['UWTROC', 153], ['WRECKS', 159], ['M_COVR', 302],
+  ] as const)('%s = %d', (acr, code) => {
+    expect(OBJL[acr as keyof typeof OBJL]).toBe(code);
+  });
+});

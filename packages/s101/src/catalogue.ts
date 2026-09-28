@@ -193,17 +193,17 @@ export const S101_FEATURE_BY_NAME: Map<string, number> = new Map(
  * Not all S-101 types have S-57 equivalents; unmapped types return undefined.
  */
 export const S101_TO_S57_OBJL: Map<number, number> = new Map([
-  [3, 3],     // AnchorageArea → ACHARE
-  [4, 2],     // AnchorBerth → ACHBRT
+  [3, 4],     // AnchorageArea → ACHARE
+  [4, 3],     // AnchorBerth → ACHBRT
   [6, 5],     // BeaconCardinal → BCNCAR
-  [8, 8],     // BeaconLateral → BCNLAT
-  [11, 11],   // Berth → BERTHS
-  [12, 12],   // Bridge → BRIDGE
-  [13, 14],   // BuiltUpArea → BUAARE
-  [15, 15],   // BuoyCardinal → BOYCAR
+  [8, 7],     // BeaconLateral → BCNLAT
+  [11, 10],   // Berth → BERTHS
+  [12, 11],   // Bridge → BRIDGE
+  [13, 13],   // BuiltUpArea → BUAARE
+  [15, 14],   // BuoyCardinal → BOYCAR
   [18, 17],   // BuoyLateral → BOYLAT
-  [19, 19],   // BuoySaw → BOYSAW
-  [20, 20],   // BuoySpecialPurpose → BOYSPP
+  [19, 18],   // BuoySaw → BOYSAW
+  [20, 19],   // BuoySpecialPurpose → BOYSPP
   [22, 21],   // CableOverhead → CBLOHD
   [23, 22],   // CableSubmarine → CBLSUB
   [24, 23],   // Canal → CANALS
@@ -211,46 +211,46 @@ export const S101_TO_S57_OBJL: Map<number, number> = new Map([
   [29, 31],   // ContiguousZone → CONZNE
   [37, 42],   // DepthArea → DEPARE
   [38, 43],   // DepthContour → DEPCNT
-  [46, 46],   // DumpingGround → DMPGRD
-  [49, 49],   // Fairway → FAIRWY
-  [51, 51],   // FerryRoute → FERYRT
+  [46, 48],   // DumpingGround → DMPGRD
+  [49, 51],   // Fairway → FAIRWY
+  [51, 53],   // FerryRoute → FERYRT
   [52, 54],   // FisheryZone → FSHZNE
-  [56, 55],   // FogSignal → FOGSIG
-  [59, 57],   // Gate → GATCON
+  [56, 58],   // FogSignal → FOGSIG
+  [59, 61],   // Gate → GATCON
   [69, 71],   // LandArea → LNDARE
   [70, 72],   // LandElevation → LNDELV
-  [72, 77],   // Landmark → LNDMRK
+  [72, 74],   // Landmark → LNDMRK
   [73, 75],   // Light → LIGHTS
   [75, 76],   // LightFloat → LITFLT
-  [80, 78],   // LockBasin → LOKBSN
-  [82, 79],   // MagneticVariation → MAGVAR
-  [83, 81],   // MarineFarm → MARCUL
+  [80, 79],   // LockBasin → LOKBSN
+  [82, 81],   // MagneticVariation → MAGVAR
+  [83, 82],   // MarineFarm → MARCUL
   [84, 83],   // MilitaryPracticeArea → MIPARE
   [85, 84],   // MooringFacility → MORFAC
   [88, 86],   // Obstruction → OBSTRN
   [89, 87],   // OffshorePlatform → OFSPLF
-  [92, 91],   // Pile → PILPNT
-  [93, 90],   // PilotBoardingPlace → PILBOP
-  [97, 92],   // PipelineOverhead → PIPOHD
-  [98, 93],   // PipelineSubmarine → PIPSOL
-  [110, 97],  // Railway → RAILWY
+  [92, 90],   // Pile → PILPNT
+  [93, 91],   // PilotBoardingPlace → PILBOP
+  [97, 93],   // PipelineOverhead → PIPOHD
+  [98, 94],   // PipelineSubmarine → PIPSOL
+  [110, 106], // Railway → RAILWY
   [116, 112], // RestrictedArea → RESARE
   [120, 114], // River → RIVERS
   [121, 116], // Road → ROADWY
   [122, 117], // Runway → RUNWAY
-  [125, 119], // SeabedArea → SBDARE
+  [125, 121], // SeabedArea → SBDARE
   [126, 122], // ShorelineConstruction → SLCONS
-  [129, 123], // SlopingGround → SLOGRD
+  [129, 127], // SlopingGround → SLOGRD
   [132, 129], // Sounding → SOUNDG
-  [133, 131], // Spring → SPRING
+  [133, 130], // Spring → SPRING
   [135, 134], // SweptArea → SWPARE
   [140, 144], // TopMark → TOPMAR
-  [141, 148], // TrafficSeparationLine → TSELNE
-  [146, 149], // TrafficSeparationZone → TSEZNE
-  [143, 150], // TSS boundary → TSSBND
-  [148, 153], // TwoWayRoutePart → TWRTPT
-  [149, 154], // UnderwaterRock → UWTROC
-  [153, 155], // WaterTurbulence → WATTUR
+  [141, 145], // TrafficSeparationLine → TSELNE
+  [146, 150], // TrafficSeparationZone → TSEZNE
+  [143, 146], // TSS boundary → TSSBND
+  [148, 152], // TwoWayRoutePart → TWRTPT
+  [149, 153], // UnderwaterRock → UWTROC
+  [153, 156], // WaterTurbulence → WATTUR
   [157, 159], // Wreck → WRECKS
   [300, 302], // DataCoverage → M_COVR
   [303, 308], // QualityOfBathymetricData → M_QUAL

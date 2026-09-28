@@ -67,18 +67,18 @@ export interface RenderInstruction {
  */
 export const OBJL = {
   ADMARE: 1,    // Administration area
-  ACHBRT: 2,    // Anchorage berth
-  ACHARE: 3,    // Anchorage area
+  ACHBRT: 3,    // Anchorage berth
+  ACHARE: 4,    // Anchorage area
   BCNCAR: 5,    // Beacon, cardinal
-  BCNLAT: 8,    // Beacon, lateral
-  BERTHS: 11,   // Berth
-  BRIDGE: 12,   // Bridge
-  BUISGL: 13,   // Built-up area (single)
-  BUAARE: 14,   // Built-up area
-  BOYCAR: 15,   // Buoy, cardinal
+  BCNLAT: 7,    // Beacon, lateral
+  BERTHS: 10,   // Berth
+  BRIDGE: 11,   // Bridge
+  BUISGL: 12,   // Built-up area (single)
+  BUAARE: 13,   // Built-up area
+  BOYCAR: 14,   // Buoy, cardinal
   BOYLAT: 17,   // Buoy, lateral
-  BOYSAW: 19,   // Buoy, safe water
-  BOYSPP: 20,   // Buoy, special purpose
+  BOYSAW: 18,   // Buoy, safe water
+  BOYSPP: 19,   // Buoy, special purpose
   CBLOHD: 21,   // Cable overhead
   CBLSUB: 22,   // Cable submarine
   CANALS: 23,   // Canal
@@ -86,55 +86,55 @@ export const OBJL = {
   CONZNE: 31,   // Contiguous zone
   DEPARE: 42,   // Depth area
   DEPCNT: 43,   // Depth contour
-  DMPGRD: 46,   // Dumping ground
-  DWRTCL: 48,   // Deep water route centerline
-  FAIRWY: 49,   // Fairway
-  FERYRT: 51,   // Ferry route
+  DMPGRD: 48,   // Dumping ground
+  DWRTCL: 40,   // Deep water route centerline
+  FAIRWY: 51,   // Fairway
+  FERYRT: 53,   // Ferry route
   FSHZNE: 54,   // Fishery zone
-  FOGSIG: 55,   // Fog signal
-  GATCON: 57,   // Gate
+  FOGSIG: 58,   // Fog signal
+  GATCON: 61,   // Gate
   LNDARE: 71,   // Land area
   LNDELV: 72,   // Land elevation
   LIGHTS: 75,   // Light
   LITFLT: 76,   // Light float
-  LNDMRK: 77,   // Landmark
-  LOKBSN: 78,   // Lock basin
-  MAGVAR: 79,   // Magnetic variation
-  MARCUL: 81,   // Marine farm/culture
+  LNDMRK: 74,   // Landmark
+  LOKBSN: 79,   // Lock basin
+  MAGVAR: 81,   // Magnetic variation
+  MARCUL: 82,   // Marine farm/culture
   MIPARE: 83,   // Military practice area
   MORFAC: 84,   // Mooring facility
   OBSTRN: 86,   // Obstruction
   OFSPLF: 87,   // Offshore platform
-  OSPARE: 89,   // Offshore production area
-  PILBOP: 90,   // Pilot boarding place
-  PILPNT: 91,   // Pile
-  PIPOHD: 92,   // Pipeline overhead
-  PIPSOL: 93,   // Pipeline submarine
-  PRDARE: 95,   // Production area
-  RAILWY: 97,   // Railway
-  RECTRC: 98,   // Recommended track
+  OSPARE: 88,   // Offshore production area
+  PILBOP: 91,   // Pilot boarding place
+  PILPNT: 90,   // Pile
+  PIPOHD: 93,   // Pipeline overhead
+  PIPSOL: 94,   // Pipeline submarine
+  PRDARE: 97,   // Production area
+  RAILWY: 106,   // Railway
+  RECTRC: 109,   // Recommended track
   RESARE: 112,  // Restricted area
   RIVERS: 114,  // River
   ROADWY: 116,  // Road
   RUNWAY: 117,  // Runway
-  SBDARE: 119,  // Seabed area
+  SBDARE: 121,  // Seabed area
   SLCONS: 122,  // Shoreline construction
-  SLOGRD: 123,  // Sloping ground
+  SLOGRD: 127,  // Sloping ground
   SOUNDG: 129,  // Sounding
-  SPRING: 131,  // Spring
+  SPRING: 130,  // Spring
   SWPARE: 134,  // Swept area
   TOPMAR: 144,  // Top mark
-  TSELNE: 148,  // Traffic separation line
-  TSEZNE: 149,  // Traffic separation zone
-  TSSBND: 150,  // TSS boundary
-  TSSCRS: 151,  // TSS crossing
-  TSSRON: 152,  // TSS roundabout
-  TWRTPT: 153,  // Two-way route part
-  UWTROC: 154,  // Underwater rock
-  WATTUR: 155,  // Water turbulence
+  TSELNE: 145,  // Traffic separation line
+  TSEZNE: 150,  // Traffic separation zone
+  TSSBND: 146,  // TSS boundary
+  TSSCRS: 147,  // TSS crossing
+  TSSRON: 149,  // TSS roundabout
+  TWRTPT: 152,  // Two-way route part
+  UWTROC: 153,  // Underwater rock
+  WATTUR: 156,  // Water turbulence
   WRECKS: 159,  // Wrecks
   M_COVR: 302,  // Coverage
-  M_CSCL: 303,  // Compilation scale
+  M_CSCL: 301,  // Compilation scale
   M_HOPA: 304,  // Horizontal datum shift
   M_NPUB: 305,  // Nautical publication info
   M_NSYS: 306,  // Navigational system of marks
@@ -143,6 +143,89 @@ export const OBJL = {
   M_SREL: 310,  // Survey reliability
   M_VDAT: 312,  // Vertical datum
 } as const;
+
+/** Human-readable S-57 object class names, keyed by OBJL code (for legends). */
+export const OBJL_NAMES: Record<number, string> = Object.fromEntries(
+  ([
+    ['ADMARE', 'Administration area'],
+    ['ACHBRT', 'Anchorage berth'],
+    ['ACHARE', 'Anchorage area'],
+    ['BCNCAR', 'Beacon, cardinal'],
+    ['BCNLAT', 'Beacon, lateral'],
+    ['BERTHS', 'Berth'],
+    ['BRIDGE', 'Bridge'],
+    ['BUISGL', 'Built-up area (single)'],
+    ['BUAARE', 'Built-up area'],
+    ['BOYCAR', 'Buoy, cardinal'],
+    ['BOYLAT', 'Buoy, lateral'],
+    ['BOYSAW', 'Buoy, safe water'],
+    ['BOYSPP', 'Buoy, special purpose'],
+    ['CBLOHD', 'Cable overhead'],
+    ['CBLSUB', 'Cable submarine'],
+    ['CANALS', 'Canal'],
+    ['COALNE', 'Coastline'],
+    ['CONZNE', 'Contiguous zone'],
+    ['DEPARE', 'Depth area'],
+    ['DEPCNT', 'Depth contour'],
+    ['DMPGRD', 'Dumping ground'],
+    ['DWRTCL', 'Deep water route centerline'],
+    ['FAIRWY', 'Fairway'],
+    ['FERYRT', 'Ferry route'],
+    ['FSHZNE', 'Fishery zone'],
+    ['FOGSIG', 'Fog signal'],
+    ['GATCON', 'Gate'],
+    ['LNDARE', 'Land area'],
+    ['LNDELV', 'Land elevation'],
+    ['LIGHTS', 'Light'],
+    ['LITFLT', 'Light float'],
+    ['LNDMRK', 'Landmark'],
+    ['LOKBSN', 'Lock basin'],
+    ['MAGVAR', 'Magnetic variation'],
+    ['MARCUL', 'Marine farm/culture'],
+    ['MIPARE', 'Military practice area'],
+    ['MORFAC', 'Mooring facility'],
+    ['OBSTRN', 'Obstruction'],
+    ['OFSPLF', 'Offshore platform'],
+    ['OSPARE', 'Offshore production area'],
+    ['PILBOP', 'Pilot boarding place'],
+    ['PILPNT', 'Pile'],
+    ['PIPOHD', 'Pipeline overhead'],
+    ['PIPSOL', 'Pipeline submarine'],
+    ['PRDARE', 'Production area'],
+    ['RAILWY', 'Railway'],
+    ['RECTRC', 'Recommended track'],
+    ['RESARE', 'Restricted area'],
+    ['RIVERS', 'River'],
+    ['ROADWY', 'Road'],
+    ['RUNWAY', 'Runway'],
+    ['SBDARE', 'Seabed area'],
+    ['SLCONS', 'Shoreline construction'],
+    ['SLOGRD', 'Sloping ground'],
+    ['SOUNDG', 'Sounding'],
+    ['SPRING', 'Spring'],
+    ['SWPARE', 'Swept area'],
+    ['TOPMAR', 'Top mark'],
+    ['TSELNE', 'Traffic separation line'],
+    ['TSEZNE', 'Traffic separation zone'],
+    ['TSSBND', 'TSS boundary'],
+    ['TSSCRS', 'TSS crossing'],
+    ['TSSRON', 'TSS roundabout'],
+    ['TWRTPT', 'Two-way route part'],
+    ['UWTROC', 'Underwater rock'],
+    ['WATTUR', 'Water turbulence'],
+    ['WRECKS', 'Wrecks'],
+    ['M_COVR', 'Coverage'],
+    ['M_CSCL', 'Compilation scale'],
+    ['M_HOPA', 'Horizontal datum shift'],
+    ['M_NPUB', 'Nautical publication info'],
+    ['M_NSYS', 'Navigational system of marks'],
+    ['M_QUAL', 'Quality of data'],
+    ['M_SDAT', 'Sounding datum'],
+    ['M_SREL', 'Survey reliability'],
+    ['M_VDAT', 'Vertical datum'],
+  ] as const).map(([acr, name]) => [OBJL[acr], name])
+);
+
 
 /**
  * Default lookup table for S-52 rendering.
@@ -205,9 +288,11 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     radius: 3, shape: 'diamond', strokeWidth: 1,
     priority: 7, description: 'Obstruction',
   }],
+  // Small dark mark like S-52 UWTROC03/04. The isolated-danger variant depends
+  // on the safety contour (conditional procedure), which is not implemented yet.
   [OBJL.UWTROC, {
-    type: 'point', fill: 'ISDNG', stroke: 'CHRED',
-    radius: 3, shape: 'diamond', strokeWidth: 1,
+    type: 'point', fill: 'CHBLK',
+    radius: 1.8, shape: 'diamond',
     priority: 7, description: 'Underwater rock',
   }],
   [OBJL.WRECKS, {

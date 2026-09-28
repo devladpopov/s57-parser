@@ -1,9 +1,11 @@
 /**
  * NOAA ENC catalog gallery. Loads the pre-built catalog-index.json, renders a
  * searchable table of cells, and links each to a direct NOAA download plus an
- * "Open in viewer" button (the viewer fetches NOAA zips through the CORS proxy
- * in proxy/noaa-enc-worker.js).
+ * "Open in viewer" button. Both fetch NOAA zips through the CORS proxies in
+ * proxy/ (see enc-fetch.ts).
  */
+
+import { fetchEncZip } from './enc-fetch.js';
 
 interface Cell {
   id: string;
@@ -94,7 +96,36 @@ function apply() {
       : `${matched.length.toLocaleString('en-US')} cells`;
 }
 
+// Download through the same proxies as the viewer: a direct NOAA download
+// stalls after ~16 KB for some users in Russia. Falls back to NOAA itself.
+async function download(link: HTMLAnchorElement) {
+  if (link.dataset.busy) return;
+  link.dataset.busy = '1';
+  const zip = link.href;
+  const label = link.textContent;
+  try {
+    const buf = await fetchEncZip(zip, text => { link.textContent = text.replace(/^Fetching \S+/, '').replace(/^[: ]+/, '') || '...'; });
+    const url = URL.createObjectURL(new Blob([buf], { type: 'application/zip' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = zip.split('/').pop() ?? 'chart.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  } catch {
+    window.location.href = zip;
+  } finally {
+    link.textContent = label;
+    delete link.dataset.busy;
+  }
+}
+
 rowsEl.addEventListener('click', e => {
+  const link = (e.target as HTMLElement).closest('a.dl') as HTMLAnchorElement | null;
+  if (link) {
+    e.preventDefault();
+    download(link);
+    return;
+  }
   const btn = (e.target as HTMLElement).closest('button.open') as HTMLButtonElement | null;
   if (!btn) return;
   const zip = btn.dataset.zip!;

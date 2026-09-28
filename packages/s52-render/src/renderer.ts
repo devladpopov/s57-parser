@@ -596,6 +596,39 @@ function placeTextLabel(
   ctx.fillText(text, pos.x, cy);
 }
 
+// ─── Legend ─────────────────────────────────────────────────────────────────
+
+/**
+ * Draw a sample of an instruction into a w x h box at (x, y), for legends:
+ * a filled square for areas, a stroke for lines, the symbol for points.
+ */
+export function drawLegendSymbol(
+  ctx: CanvasRenderingContext2D,
+  instr: RenderInstruction,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  mode: DisplayMode = 'DAY_BRIGHT'
+): void {
+  const id: ViewTransform = { toPixelX: v => v, toPixelY: v => v };
+  if (instr.type === 'area') {
+    const ring: [number, number][] = [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]];
+    drawPolygon(ctx, [ring], { ...instr, stroke: instr.stroke ?? 'CHGRD', strokeWidth: instr.strokeWidth ?? 0.5 }, id, mode);
+    if (instr.pattern) drawPatternFill(ctx, [ring], instr, id, mode, x + w, y + h);
+  } else if (instr.type === 'line') {
+    drawLine(ctx, [[x, y + h / 2], [x + w, y + h / 2]], { ...instr, strokeWidth: Math.max(instr.strokeWidth ?? 0.5, 1) }, id, mode);
+  } else if (instr.type === 'point') {
+    drawSymbolAt(ctx, x + w / 2, y + h / 2, instr, mode);
+  } else {
+    ctx.font = `${instr.textSize ?? 9}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = rgbToCSS(resolveColor(instr.textColor ?? 'CHBLK', mode));
+    ctx.fillText('Abc', x + w / 2, y + h / 2);
+  }
+}
+
 /** Label position for point and line geometry; polygons use the visible-part anchor. */
 function labelPosition(
   geom: GeoJSONGeometry,
