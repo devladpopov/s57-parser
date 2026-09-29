@@ -19,7 +19,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 /** Download the parsed feature collection as a `.geojson` file (QGIS-ready). */
 export function exportGeoJSON(geojson: unknown, filename: string): void {
   const replacer = (key: string, value: unknown) =>
-    key === '_attributes' ? undefined : value; // drop the internal Map
+    key === '_attributes' || key === '_outline' ? undefined : value; // drop internal render data
   const blob = new Blob([JSON.stringify(geojson, replacer)], {
     type: 'application/geo+json',
   });

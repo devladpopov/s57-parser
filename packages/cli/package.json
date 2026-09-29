@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI tool for inspecting S-57/ISO 8211 files",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",

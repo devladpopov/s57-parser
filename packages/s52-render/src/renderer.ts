@@ -91,7 +91,7 @@ export function renderChart(
       if (a) drawSymbolAt(ctx, a.x, a.y, it.instr, mode);
       continue;
     }
-    renderFeature(ctx, it.feature.geometry!, it.instr, view, mode);
+    renderFeature(ctx, it.feature.geometry!, it.instr, view, mode, it.feature.properties._outline as Outline);
   }
 
   // Pass 2: pattern fills (on top of solid fills)
@@ -217,12 +217,19 @@ function boxesOverlap(
   return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
 }
 
+/**
+ * Boundary lines to stroke for an area, when some of its edges must not be
+ * drawn (on the data limit or masked); set by toGeoJSON as properties._outline.
+ */
+type Outline = [number, number][][] | undefined;
+
 function renderFeature(
   ctx: CanvasRenderingContext2D,
   geom: GeoJSONGeometry,
   instr: RenderInstruction,
   view: ViewTransform,
-  mode: DisplayMode
+  mode: DisplayMode,
+  outline?: Outline
 ): void {
   switch (geom.type) {
     case 'Point':
@@ -248,7 +255,7 @@ function renderFeature(
         const c = ringCentroid(geom.coordinates[0] ?? []);
         if (c) drawSymbol(ctx, c, instr, view, mode);
       } else {
-        drawPolygon(ctx, geom.coordinates, instr, view, mode);
+        drawPolygon(ctx, geom.coordinates, instr, view, mode, outline);
       }
       break;
     case 'GeometryCollection':
@@ -345,7 +352,8 @@ function drawPolygon(
   rings: [number, number][][],
   instr: RenderInstruction,
   view: ViewTransform,
-  mode: DisplayMode
+  mode: DisplayMode,
+  outline?: Outline
 ): void {
   ctx.beginPath();
   for (const ring of rings) {
@@ -362,6 +370,14 @@ function drawPolygon(
     ctx.fill('evenodd');
   }
   if (instr.stroke) {
+    if (outline) {
+      // Stroke only the edges that are part of the real boundary.
+      ctx.beginPath();
+      for (const line of outline) {
+        ctx.moveTo(view.toPixelX(line[0][0]), view.toPixelY(line[0][1]));
+        for (let i = 1; i < line.length; i++) ctx.lineTo(view.toPixelX(line[i][0]), view.toPixelY(line[i][1]));
+      }
+    }
     ctx.strokeStyle = rgbToCSS(resolveColor(instr.stroke, mode));
     ctx.lineWidth = instr.strokeWidth ?? 0.5;
     if (instr.dashPattern) {

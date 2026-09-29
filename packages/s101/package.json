@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/s101",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "S-101 ENC data model, parser, and GeoJSON conversion (S-100 framework)",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",

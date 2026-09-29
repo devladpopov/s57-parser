@@ -44,6 +44,10 @@ export function toGeoJSON(
 
     const geometry = resolveGeometry(feature, dataset.spatialRecords);
     const properties = buildProperties(feature);
+    if (feature.prim === GeomPrimitive.Area && geometry) {
+      const outline = areaOutline(feature, dataset.spatialRecords);
+      if (outline) properties._outline = outline;
+    }
 
     features.push({ type: 'Feature', geometry, properties });
   }
@@ -135,9 +139,12 @@ function resolveArea(
   feature: FeatureRecord,
   spatialRecords: Map<number, SpatialRecord>
 ): GeoJSONGeometry | null {
-  // Collect exterior (usag=1) and interior (usag=2) rings
+  // Collect exterior (usag=1, or 3 where truncated by the data limit) and
+  // interior (usag=2) rings. A hole may be made of several edges: chain them
+  // until the ring closes, then start the next hole.
   const exteriorCoords: [number, number][] = [];
   const interiorRings: [number, number][][] = [];
+  let hole: [number, number][] = [];
 
   for (const ref of feature.spatialRefs) {
     const spatial = spatialRecords.get(spatialKey(ref.rcnm, ref.rcid));
@@ -148,7 +155,11 @@ function resolveArea(
 
     if (ref.usag === 2) {
       // Interior boundary (hole)
-      interiorRings.push(closeRing(edgeCoords));
+      appendEdge(hole, edgeCoords);
+      if (hole.length >= 4 && samePoint(hole[0], hole[hole.length - 1])) {
+        interiorRings.push(hole);
+        hole = [];
+      }
     } else {
       // Exterior boundary
       if (exteriorCoords.length > 0 && edgeCoords.length > 0) {
@@ -162,10 +173,57 @@ function resolveArea(
     }
   }
 
+  if (hole.length >= 3) interiorRings.push(closeRing(hole));
   if (exteriorCoords.length < 3) return null;
 
   const rings: [number, number][][] = [closeRing(exteriorCoords), ...interiorRings];
   return { type: 'Polygon', coordinates: rings };
+}
+
+/**
+ * Boundary lines of an area that should be drawn, when some of its edges
+ * should not: edges on the data limit (USAG=3) and masked edges (MASK=1).
+ * S-52 does not draw an area's boundary where the area is cut by the edge of
+ * the data. Returns undefined when every edge is drawn (use the rings).
+ */
+function areaOutline(
+  feature: FeatureRecord,
+  spatialRecords: Map<number, SpatialRecord>
+): [number, number][][] | undefined {
+  if (!feature.spatialRefs.some(r => r.usag === 3 || r.mask === 1)) return undefined;
+  const lines: [number, number][][] = [];
+  let current: [number, number][] = [];
+  for (const ref of feature.spatialRefs) {
+    const spatial = spatialRecords.get(spatialKey(ref.rcnm, ref.rcid));
+    if (!spatial) continue;
+    if (ref.usag === 3 || ref.mask === 1) {
+      if (current.length >= 2) lines.push(current);
+      current = [];
+      continue;
+    }
+    const edgeCoords = coordsFromSpatial(spatial, spatialRecords);
+    if (ref.ornt === 2) edgeCoords.reverse();
+    if (current.length && edgeCoords.length && !samePoint(current[current.length - 1], edgeCoords[0])) {
+      if (current.length >= 2) lines.push(current);
+      current = [];
+    }
+    appendEdge(current, edgeCoords);
+  }
+  if (current.length >= 2) lines.push(current);
+  return lines;
+}
+
+/** Append an edge to a coordinate chain, dropping the shared node. */
+function appendEdge(chain: [number, number][], edge: [number, number][]): void {
+  if (chain.length && edge.length && samePoint(chain[chain.length - 1], edge[0])) {
+    chain.push(...edge.slice(1));
+  } else {
+    chain.push(...edge);
+  }
+}
+
+function samePoint(a: [number, number], b: [number, number]): boolean {
+  return a[0] === b[0] && a[1] === b[1];
 }
 
 /**
