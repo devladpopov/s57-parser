@@ -243,7 +243,13 @@ function decodeSubfields(raw: Uint8Array, desc: DataDescriptiveField): SubfieldV
   let formatIdx = 0;
   let labelIdx = 0;
 
-  while (offset < raw.length && raw[offset] !== FIELD_TERMINATOR) {
+  // The field ends with a field terminator. Stop there, but do not treat 0x1E
+  // anywhere else as the end: inside binary subfields it is an ordinary byte
+  // (an RCID of 30, or a coordinate whose low byte is 0x1E), and stopping on it
+  // silently dropped the rest of the field.
+  const limit = raw.length > 0 && raw[raw.length - 1] === FIELD_TERMINATOR ? raw.length - 1 : raw.length;
+
+  while (offset < limit) {
     if (desc.formatControls.length === 0) break;
 
     const fmt = desc.formatControls[formatIdx % desc.formatControls.length];

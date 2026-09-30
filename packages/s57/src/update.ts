@@ -104,16 +104,17 @@ function applySpatialUpdate(
       const ccix = (getSubfieldNum(sgcc, 'CCIX') ?? 1) - 1; // 1-based → 0-based index
       const ccnc = getSubfieldNum(sgcc, 'CCNC') ?? 0; // number of coords
 
+      // A delete carries no coordinate field, and an insert may add the first
+      // intermediate vertices to an edge that had none, so the target list is
+      // chosen by the record itself: soundings (3D) or everything else (2D).
       const sg2d = fieldMap.get('SG2D');
-      if (sg2d && existing.coordinates2D.length > 0) {
-        const newCoords = parse2DCoords(sg2d, dataset.comf);
-        applySplice(existing.coordinates2D, ccui, ccix, ccnc, newCoords);
-      }
-
       const sg3d = fieldMap.get('SG3D');
-      if (sg3d && existing.coordinates3D.length > 0) {
-        const newCoords = parse3DCoords(sg3d, dataset.comf, dataset.somf);
+      if (sg3d || (!sg2d && existing.coordinates3D.length > 0)) {
+        const newCoords = sg3d ? parse3DCoords(sg3d, dataset.comf, dataset.somf) : [];
         applySplice(existing.coordinates3D, ccui, ccix, ccnc, newCoords);
+      } else {
+        const newCoords = sg2d ? parse2DCoords(sg2d, dataset.comf) : [];
+        applySplice(existing.coordinates2D, ccui, ccix, ccnc, newCoords);
       }
     }
 
@@ -195,14 +196,15 @@ function applyFeatureUpdate(
     }
 
     // Apply FSPT spatial reference updates
+    // A delete instruction comes without an FSPT field.
     const fspc = fieldMap.get('FSPC');
     const fspt = fieldMap.get('FSPT');
-    if (fspc && fspt) {
+    if (fspc) {
       const fsui = getSubfieldNum(fspc, 'FSUI') ?? 0;
       const fsix = (getSubfieldNum(fspc, 'FSIX') ?? 1) - 1;
       const nspt = getSubfieldNum(fspc, 'NSPT') ?? 0;
 
-      const newRefs = parseSpatialRefs(fspt);
+      const newRefs = fspt ? parseSpatialRefs(fspt) : [];
       applySplice(existing.spatialRefs, fsui, fsix, nspt, newRefs);
     }
 

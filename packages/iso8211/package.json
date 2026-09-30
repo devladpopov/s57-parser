@@ -1,6 +1,6 @@
 {
   "name": "@s57-parser/iso8211",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pure TypeScript ISO 8211 binary format parser",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
