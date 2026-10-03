@@ -12,6 +12,23 @@ experimental **S-101** support and **S-52**-style rendering in the browser.
 
 No runtime dependencies outside this repository. ESM packages for Node.js 18+, Bun and browsers.
 
+## Who is it for
+
+- **Boating and chartplotter apps**: show official ENC charts in a web or hybrid
+  app without a tile pipeline, GDAL or a commercial SDK.
+- **Open marine platforms** (Signal K, OpenCPN tooling, OpenSeaMap): read
+  S-57 cells directly in the browser or in Node.js.
+- **AIS, port and logistics dashboards**: a nautical base layer under vessel
+  tracks, built from free NOAA charts.
+- **Maritime education**: browser-based ENC reading exercises for cadets,
+  no simulator licence needed.
+- **GIS and hydrography work**: S-57 to GeoJSON, ISO 8211 inspection, an
+  early start on S-101.
+
+Not for primary navigation: see [Limitations](#limitations). Need integration
+help or a feature? Open an [issue](https://github.com/devladpopov/s57-parser/issues)
+or write to vlad@studyqa.com.
+
 ## Packages
 
 | Package | Description |
