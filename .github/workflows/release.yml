@@ -35,13 +35,16 @@ jobs:
       # Trusted Publishing needs npm >= 11.5.1
       - run: npm install -g npm@latest
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
       - name: Build packages
         run: bun run build
 
       - name: Run tests
         run: bun test
+
+      - name: Check npm packages
+        run: bun run pack:check
 
       - name: Publish new versions
         run: bun scripts/publish.ts

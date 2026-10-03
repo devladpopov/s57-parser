@@ -3,11 +3,13 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "lib": ["ES2022", "DOM"]
+    "types": ["node"]
   },
   "include": ["src"],
   "references": [
     { "path": "../iso8211" },
-    { "path": "../s57" }
+    { "path": "../s57" },
+    { "path": "../s101" },
+    { "path": "../s52-render" }
   ]
 }

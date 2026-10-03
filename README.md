@@ -7,250 +7,161 @@
 
 **[Live Demo](https://devladpopov.github.io/s57-parser/)** — parse a real NOAA chart in the browser. No server, no GDAL.
 
-Pure TypeScript parser for **S-57** and **S-101** marine navigational charts with **S-52** symbology rendering in the browser.
+Pure TypeScript parser for **S-57** marine navigational charts (ENC), with
+experimental **S-101** support and **S-52**-style rendering in the browser.
 
-Zero runtime dependencies. Works in Node.js, Bun, and browsers. **127 tests.**
+No runtime dependencies outside this repository. ESM packages for Node.js 18+, Bun and browsers.
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `@s57-parser/iso8211` | ISO 8211 binary format parser |
-| `@s57-parser/s57` | S-57 ENC data model, topology, GeoJSON conversion |
-| `@s57-parser/s101` | S-101 ENC parser (S-100 framework), auto-detection |
-| `@s57-parser/s52-render` | S-52 Canvas2D renderer (IHO symbology, 3 palettes) |
-| `@s57-parser/leaflet` | Leaflet plugin with S-52 canvas overlay |
-| `@s57-parser/maplibre` | MapLibre GL JS plugin (GeoJSON source + canvas layer) |
-| `@s57-parser/cli` | CLI tool: parse and inspect S-57/S-101 files |
+| [`@s57-parser/iso8211`](packages/iso8211) | ISO 8211 binary format parser |
+| [`@s57-parser/s57`](packages/s57) | S-57 data model, topology, updates, typed features, GeoJSON |
+| [`@s57-parser/s101`](packages/s101) | S-101 parser (experimental), format detection |
+| [`@s57-parser/s52-render`](packages/s52-render) | Canvas2D renderer with S-52 palettes and symbology |
+| [`@s57-parser/leaflet`](packages/leaflet) | Leaflet layer |
+| [`@s57-parser/maplibre`](packages/maplibre) | MapLibre GL JS source and custom layer |
+| [`@s57-parser/cli`](packages/cli) | `s57` command: info, GeoJSON export, ISO 8211 dump |
 
-## Quick Start
+Each package has its own README with the full API.
+
+## Quick start
 
 ```bash
-npm install @s57-parser/s57 @s57-parser/s52-render
+npm install @s57-parser/s57
 ```
 
-### Parse an S-57 chart
+### Node.js: S-57 cell to GeoJSON
 
-```typescript
-import { parseS57, toGeoJSON } from '@s57-parser/s57';
+```ts
+import { readFileSync, writeFileSync } from 'node:fs';
+import { parseS57, applyUpdate, toGeoJSON } from '@s57-parser/s57';
 
-const response = await fetch('/chart/US5MA19M.000');
-const buffer = await response.arrayBuffer();
+// Node buffers may be views into a shared pool: copy to a standalone ArrayBuffer.
+const read = (path: string) => {
+  const b = readFileSync(path);
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+};
 
-const dataset = parseS57(buffer);
-const geojson = toGeoJSON(dataset);
+const dataset = parseS57(read('ENC_ROOT/US5MA19M/US5MA19M.000'));
+applyUpdate(dataset, read('ENC_ROOT/US5MA19M/US5MA19M.001'));
 
-console.log(`${dataset.features.length} features`);
-console.log(`${dataset.spatialRecords.size} spatial records`);
+console.log(dataset.name, dataset.cscl, dataset.features.length);
+writeFileSync('chart.geojson', JSON.stringify(toGeoJSON(dataset)));
 ```
 
-### Render with S-52 symbology
+Or with the CLI: `npx @s57-parser/cli geojson US5MA19M.000 US5MA19M.001 -o chart.geojson`.
 
-```typescript
+### Browser: draw with S-52 symbology
+
+```ts
 import { parseS57, toGeoJSON } from '@s57-parser/s57';
 import { renderChart } from '@s57-parser/s52-render';
 
+const buffer = await (await fetch('/charts/US5MA12M.000')).arrayBuffer();
 const dataset = parseS57(buffer);
 const geojson = toGeoJSON(dataset);
 
-// Attach attributes for conditional symbology (depth-based coloring, etc.)
-for (const f of geojson.features) {
-  const feat = dataset.features.find(d => d.rcid === f.properties.RCID);
-  if (feat) f.properties._attributes = feat.attributes;
-}
+// Conditional symbology (depth colours, light colours) reads raw attributes.
+const attrs = new Map(dataset.features.map(f => [f.rcid, f.attributes]));
+for (const f of geojson.features) f.properties._attributes = attrs.get(f.properties.RCID as number);
 
-const canvas = document.getElementById('chart') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d')!;
-
-renderChart(ctx, geojson, {
-  toPixelX: lon => /* your lon-to-pixel transform */,
-  toPixelY: lat => /* your lat-to-pixel transform */,
+const canvas = document.querySelector('canvas')!;
+const [west, south, east, north] = [-71.08, 42.21, -70.73, 42.34];
+renderChart(canvas.getContext('2d')!, geojson, {
+  toPixelX: lon => ((lon - west) / (east - west)) * canvas.width,
+  toPixelY: lat => ((north - lat) / (north - south)) * canvas.height,
 }, canvas.width, canvas.height, { mode: 'DAY_BRIGHT' });
 ```
 
-### S-101 support
+### Typed features
 
-```typescript
-import { parseS101, isS101, toGeoJSON } from '@s57-parser/s101';
+```ts
+import { typedFeatures, filterByClass } from '@s57-parser/s57';
 
-// Auto-detect format
-if (isS101(buffer)) {
-  const dataset = parseS101(buffer);
-  const geojson = toGeoJSON(dataset);
-  // GeoJSON properties include OBJL mapped to S-57 codes
-  // for compatibility with the S-52 renderer
-}
-```
-
-### Leaflet integration
-
-```typescript
-import L from 'leaflet';
-import { S57Layer } from '@s57-parser/leaflet';
-
-const map = L.map('map').setView([42.35, -70.88], 12);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-const response = await fetch('/chart/US5MA19M.000');
-const buffer = await response.arrayBuffer();
-const layer = new S57Layer(buffer, { mode: 'DAY_BRIGHT' });
-layer.addTo(map);
-
-// Cycle display modes
-layer.setMode('DUSK');
-layer.setMode('NIGHT');
-```
-
-### MapLibre GL JS integration
-
-```typescript
-import maplibregl from 'maplibre-gl';
-import { addChartSource } from '@s57-parser/maplibre';
-
-const map = new maplibregl.Map({ container: 'map', style: '...' });
-
-const response = await fetch('/chart/US5MA19M.000');
-const buffer = await response.arrayBuffer();
-
-// Option 1: Native vector rendering with S-52-inspired styles
-addChartSource(map, buffer, { sourceId: 'enc' });
-
-// Option 2: Full S-52 canvas overlay
-import { S57CanvasLayer } from '@s57-parser/maplibre';
-const layer = new S57CanvasLayer('enc-overlay', buffer);
-map.addLayer(layer);
-```
-
-### Typed feature access
-
-```typescript
-import { parseS57, typedFeatures, filterByClass } from '@s57-parser/s57';
-import type { Light, DepthArea } from '@s57-parser/s57';
-
-const dataset = parseS57(buffer);
 const typed = typedFeatures(dataset.features);
-
-// Filter by object class with full type narrowing
-const lights = filterByClass(typed, 'LIGHTS');
-for (const light of lights) {
-  // light is Light — litchr, sigper, sectr1, sectr2 are typed
-  console.log(`${light.name}: ${light.litchr} period=${light.sigper}s`);
-}
-
-const depths = filterByClass(typed, 'DEPARE');
-for (const area of depths) {
-  // area is DepthArea — drval1, drval2 are typed numbers
-  console.log(`Depth: ${area.drval1}–${area.drval2}m`);
+for (const light of filterByClass(typed, 'LIGHTS')) {
+  console.log(light.name, light.litchr, light.sigper, light.colour);
 }
 ```
 
-15 object classes supported: `DEPARE`, `DEPCNT`, `SOUNDG`, `COALNE`, `LNDARE`,
-`LIGHTS`, `BCNCAR`, `BCNLAT`, `BOYCAR`, `BOYLAT`, `BOYSAW`, `BOYSPP`,
-`OBSTRN`, `WRECKS`, `UWTROC`, `RESARE`, `BRIDGE`, `LNDMRK`, `ACHARE`.
+### Leaflet and MapLibre
 
-### Apply incremental updates
+```ts
+import { S57Layer } from '@s57-parser/leaflet';
+new S57Layer(buffer, { mode: 'DUSK' }).addTo(leafletMap);
 
-```typescript
-import { parseS57 } from '@s57-parser/s57';
-import { applyUpdate } from '@s57-parser/s57';
-
-const base = parseS57(baseBuffer);    // .000 file
-applyUpdate(base, update001Buffer);   // .001 file (mutates dataset)
-applyUpdate(base, update002Buffer);   // .002 file
+import { addChartSource, S57CanvasLayer } from '@s57-parser/maplibre';
+addChartSource(maplibreMap, buffer, { sourceId: 'enc' });          // vector layers
+maplibreMap.addLayer(new S57CanvasLayer('enc-overlay', buffer));    // S-52 overlay
 ```
 
 ## Features
 
-**ISO 8211 Parser**
-- Full ISO/IEC 8211 binary format support
-- Variable-length fields, mixed binary/text encoding
-- Both `b15` (suffix) and `B(40)` (parenthesized) binary field notations
+**ISO 8211**: DDR-driven decoding of `A`, `I`, `R`, `b1n`/`b2n` and `B(n)` subfields,
+repeating groups, binary data containing terminator bytes; rejects malformed input.
 
-**S-57 Parser**
-- Typed feature API: 15 object classes with parsed attributes (`DepthArea`, `Light`, `Buoy`, etc.)
-- Attribute catalogue with IHO standard ATTL codes
-- Feature and spatial record extraction
-- Chain-node topology resolution (VRPT edge endpoints)
-- Coordinate scaling (COMF/SOMF)
-- GeoJSON conversion (Point, MultiPoint, LineString, Polygon)
-- Update mechanism (.001/.002 incremental files)
+**S-57**: DSID/DSPM metadata (COMF, SOMF, compilation scale), feature and vector
+records, chain-node topology, polygons with holes, data-limit outlines,
+incremental updates (RUIN, FSPC, VRPC, SGCC), 15 typed feature interfaces,
+the IHO attribute catalogue.
 
-**S-101 Parser**
-- S-100 framework ISO 8211 encoding
-- 160+ feature types with full catalogue
-- Complex (nested) attributes
-- Information records and associations
-- S-57 OBJL mapping for renderer compatibility
-- Auto-detection (isS101)
+**S-101** (experimental): feature catalogue, complex attributes, information
+records, associations, S-57 code mapping. Tested on synthetic data only, see
+the [package README](packages/s101#status).
 
-**S-52 Renderer**
-- Three IHO display palettes: DAY_BRIGHT, DUSK, NIGHT
-- 50+ object class symbology rules
-- Conditional symbology: depth-dependent DEPARE coloring, light color by COLOUR attribute
-- Text labels: sounding depths, depth contour values, light characteristics (IHO abbreviations)
-- Sector lights: arc rendering with bearing-based sectors
-- Pattern fills: hatch, cross-hatch, stipple
-- Priority-based rendering (8 display priority levels)
+**S-52 rendering**: DAY_BRIGHT / DUSK / NIGHT palettes, rules for 36 object classes (a default style for the rest),
+conditional symbology for depth areas and lights, sector lights, sounding and
+light labels, pattern fills, label decluttering, viewport culling.
 
-## S-52 Display Modes
+## Limitations
 
-| Mode | Use case |
-|------|----------|
-| `DAY_BRIGHT` | Full daylight, highest contrast |
-| `DUSK` | Twilight, reduced brightness |
-| `NIGHT` | Night vision, dark red-tinted |
-
-## Architecture
-
-```
-@s57-parser/iso8211       Pure ISO 8211 binary parser
-       |
-  +---------+
-  |         |
-@s57-parser/s57    @s57-parser/s101
-  |         |
-  +---------+
-       |
-@s57-parser/s52-render    Canvas2D S-52 renderer
-       |
-  +---------+
-  |         |
-@s57-parser/leaflet    @s57-parser/maplibre
-```
-
-## Test Data
-
-Download free NOAA ENC charts from [charts.noaa.gov](https://charts.noaa.gov/ENCs/ENCs.shtml) (S-57 .000 files, ~782 MB total).
-
-Place files in the `test-data/` directory for integration tests.
+- Not for navigation. The renderer is a simplified S-52 presentation, not a
+  type-approved ECDIS presentation library.
+- S-63 encrypted cells are not supported.
+- National text in UCS-2 (S-57 lexical level 2) is decoded as bytes, not converted.
+- ESM only: use `import`, or `require()` on Node.js 22.12+.
 
 ## Development
 
 ```bash
-# Install dependencies
 bun install
-
-# Run all tests (127 tests across 8 packages)
-bun test
-
-# Build all packages
-bun run build
-
-# Build and run the demo viewer (http://localhost:3457)
-bun demo/build.ts
-bun run demo/serve.ts
+bun test                 # all packages
+bun run test:coverage    # with coverage thresholds (bunfig.toml)
+bun run build            # tsc -b: type-check and build every package
+bun run pack:check       # pack, install into a fresh project, import, run CLI, check types
 ```
 
-### Viewer without a server
+Tests run on the NOAA cell committed at `demo/charts/US5MA12M.000`. Update
+files and S-101 datasets are generated in tests with a small ISO 8211 writer
+(`test-utils/`). Tests for NOAA US5MA19M and its `.001` update run when the
+cell is in `test-data/` (CI downloads it):
 
-`bun demo/build.ts` also writes `demo/dist/s57-viewer.html`: the whole viewer in one
-self-contained HTML file with no module scripts, so it opens straight from disk
-(`file://`) and works offline. Drag and drop a `.000` cell or a NOAA `.zip`
-exchange set onto it. A prebuilt copy is on the demo site:
-https://devladpopov.github.io/s57-parser/s57-viewer.html (save it and open locally).
+```bash
+mkdir -p test-data/US5MA19M
+curl -L https://charts.noaa.gov/ENCs/US5MA19M.zip -o /tmp/US5MA19M.zip
+unzip -o /tmp/US5MA19M.zip -d test-data/US5MA19M
+```
 
-`demo/index.html` loads the same viewer as a classic script, so after a build it
-also works when opened from disk.
+Demo viewer:
+
+```bash
+bun demo/build.ts && bun run demo/serve.ts   # http://localhost:3457
+```
+
+`bun demo/build.ts` also writes `demo/dist/s57-viewer.html`, the whole viewer in one
+self-contained HTML file that opens from disk (`file://`) and works offline.
+Drop a `.000` cell or a NOAA `.zip` exchange set onto it. A prebuilt copy:
+https://devladpopov.github.io/s57-parser/s57-viewer.html
+
+### Releasing
+
+1. Update versions in `packages/*/package.json` and move the `Unreleased`
+   section of [CHANGELOG.md](CHANGELOG.md) under the new version.
+2. `bun run build && bun run pack:check`
+3. Push a `v*` tag. [release.yml](.github/workflows/release.yml) publishes every
+   package whose version is not on npm yet (npm Trusted Publishing, no token).
 
 ## Contributing
 

@@ -1,7 +1,7 @@
 {
   "name": "@s57-parser/cli",
-  "version": "0.2.0",
-  "description": "CLI tool for inspecting S-57/ISO 8211 files",
+  "version": "0.3.0",
+  "description": "Command-line tool to inspect S-57/S-101 cells, convert them to GeoJSON and dump ISO 8211 records",
   "license": "MIT",
   "author": "Vladislav Popov <vlad@alumni.york.ac.uk> (https://vladislavpopov.ru)",
   "homepage": "https://github.com/devladpopov/s57-parser/tree/master/packages/cli#readme",
@@ -25,15 +25,29 @@
   "bin": {
     "s57": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "build": "tsc -b",
+    "test": "bun test",
+    "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
     "@s57-parser/iso8211": "workspace:*",
+    "@s57-parser/s101": "workspace:*",
+    "@s57-parser/s52-render": "workspace:*",
     "@s57-parser/s57": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^22",
     "typescript": "^5.8.0"
   }
 }

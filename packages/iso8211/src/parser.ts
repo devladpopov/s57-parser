@@ -9,8 +9,15 @@ import type { ISO8211File, ISO8211Record, ISO8211Leader, ISO8211DirectoryEntry, 
 
 const UNIT_TERMINATOR = 0x1f;
 const FIELD_TERMINATOR = 0x1e;
+const LEADER_LENGTH = 24;
 
-/** Parse an ISO 8211 file from an ArrayBuffer. */
+/**
+ * Parse an ISO 8211 file from an ArrayBuffer.
+ *
+ * @throws Error if the buffer does not start with a valid DDR or a record
+ *   leader is inconsistent (truncated file, wrong format). Fewer than 24
+ *   trailing bytes after the last record are ignored.
+ */
 export function parse(buffer: ArrayBuffer): ISO8211File {
   const view = new DataView(buffer);
   const bytes = new Uint8Array(buffer);
@@ -25,7 +32,7 @@ export function parse(buffer: ArrayBuffer): ISO8211File {
 
   // Parse all DRs
   const records: ISO8211Record[] = [];
-  while (offset < bytes.length) {
+  while (bytes.length - offset >= LEADER_LENGTH) {
     const dr = parseRecord(bytes, view, offset);
     // Decode subfields using DDR descriptors
     decodeFields(dr, descriptors);
@@ -38,7 +45,22 @@ export function parse(buffer: ArrayBuffer): ISO8211File {
 
 /** Parse a single record (DDR or DR) starting at the given offset. */
 function parseRecord(bytes: Uint8Array, view: DataView, offset: number): ISO8211Record {
+  if (bytes.length - offset < LEADER_LENGTH) {
+    throw new Error(`ISO 8211: truncated record leader at byte ${offset}`);
+  }
   const leader = parseLeader(bytes, offset);
+  // A zero or garbage length would stall or derail the record loop, so reject
+  // anything that is not a self-consistent leader.
+  const { recordLength, baseAddressOfFieldArea, entryMap } = leader;
+  if (!Number.isInteger(recordLength) || recordLength < LEADER_LENGTH || offset + recordLength > bytes.length) {
+    throw new Error(`ISO 8211: invalid record length at byte ${offset}`);
+  }
+  if (!Number.isInteger(baseAddressOfFieldArea) || baseAddressOfFieldArea <= LEADER_LENGTH || baseAddressOfFieldArea > recordLength) {
+    throw new Error(`ISO 8211: invalid base address of field area at byte ${offset}`);
+  }
+  if (!(entryMap.sizeOfFieldLength > 0 && entryMap.sizeOfFieldPosition > 0 && entryMap.sizeOfFieldTag > 0)) {
+    throw new Error(`ISO 8211: invalid entry map at byte ${offset}`);
+  }
   const directory = parseDirectory(bytes, offset, leader);
   const fields = extractFields(bytes, offset, leader, directory);
   return { leader, directory, fields };
