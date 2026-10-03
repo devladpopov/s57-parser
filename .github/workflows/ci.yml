@@ -5,9 +5,18 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
+    name: Test (coverage)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,8 +25,10 @@ jobs:
         with:
           bun-version: latest
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
+      # Tests run on the cell committed in demo/charts. US5MA19M adds tests for
+      # a real .001 update; they are skipped if the download fails.
       - name: Cache NOAA test data
         id: cache-test-data
         uses: actions/cache@v4
@@ -27,17 +38,39 @@ jobs:
 
       - name: Download NOAA test chart
         if: steps.cache-test-data.outputs.cache-hit != 'true'
+        continue-on-error: true
         run: |
           mkdir -p test-data/US5MA19M
-          curl -sL https://charts.noaa.gov/ENCs/US5MA19M.zip -o /tmp/US5MA19M.zip
-          unzip -o -q /tmp/US5MA19M.zip -d test-data/US5MA19M
+          curl -fsSL --retry 3 https://charts.noaa.gov/ENCs/US5MA19M.zip -o "$RUNNER_TEMP/US5MA19M.zip"
+          unzip -o -q "$RUNNER_TEMP/US5MA19M.zip" -d test-data/US5MA19M
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with coverage thresholds
+        run: bun run test:coverage
 
-      - name: Type check
-        run: |
-          cd packages/iso8211 && bun run build
-          cd ../s57 && bun run build
-          cd ../s101 && bun run build
-          cd ../s52-render && bun run build
+  build:
+    name: Build and pack (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: bun install --frozen-lockfile
+
+      - name: Type-check and build all packages
+        run: bun run build
+
+      # Packs every package as release.yml would, installs the tarballs into a
+      # fresh project, imports them from Node, runs the CLI and checks types.
+      - name: Check npm packages
+        run: bun run pack:check

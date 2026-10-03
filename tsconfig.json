@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/iso8211" },
+    { "path": "packages/s57" },
+    { "path": "packages/s101" },
+    { "path": "packages/s52-render" },
+    { "path": "packages/leaflet" },
+    { "path": "packages/maplibre" },
+    { "path": "packages/cli" }
+  ]
+}

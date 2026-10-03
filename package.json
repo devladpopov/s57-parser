@@ -13,8 +13,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --filter '*' build",
-    "test": "bun run --filter '*' test",
+    "build": "tsc -b",
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "pack:check": "bun scripts/pack-check.ts",
     "clean": "bun run --filter '*' clean"
   },
   "dependencies": {
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "leaflet": "^1.9.4",
-    "maplibre-gl": "^5"
+    "maplibre-gl": "^5",
+    "typescript": "^5.8.0"
   }
 }

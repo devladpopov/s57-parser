@@ -1,0 +1,5 @@
+[test]
+# Coverage covers library sources only; shared test helpers are excluded.
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["test-utils/**"]
+coverageThreshold = { lines = 0.95, functions = 0.9 }

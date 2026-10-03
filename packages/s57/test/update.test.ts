@@ -1,123 +1,232 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
-import { readFileSync } from 'fs';
-import { parseS57 } from '../src/parser.js';
+import { parseS57, spatialKey } from '../src/parser.js';
 import { applyUpdate } from '../src/update.js';
 import { toGeoJSON } from '../src/geojson.js';
-import { join } from 'path';
+import { SpatialType, type S57Dataset } from '../src/types.js';
+import { SAMPLE_CELL, NOAA_US5MA19M_DIR, hasNoaaUS5MA19M, readArrayBuffer } from '../../../test-utils/fixtures.js';
+import { ddr, dr, file, s57, S57_FIELDS } from '../../../test-utils/iso8211-writer.js';
 
-const BASE_PATH = join(import.meta.dir, '../../../test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.000');
-const UPDATE_PATH = join(import.meta.dir, '../../../test-data/US5MA19M/ENC_ROOT/US5MA19M/US5MA19M.001');
+// The repository has no real update file for US5MA12M, so each test applies
+// a small .001 written with the S-57 update fields (FSPC, VRPC, SGCC, RUIN)
+// to records that exist in the real base cell.
 
-function loadBuffer(path: string): ArrayBuffer {
-  const buf = readFileSync(path);
-  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-}
+const INSERT = 1, DELETE = 2, MODIFY = 3;
+const IN = SpatialType.IsolatedNode, CN = SpatialType.ConnectedNode, ED = SpatialType.Edge;
+type Field = [string, Uint8Array];
 
-describe('S-57 update mechanism — real .001 file', () => {
-  let baseDataset: ReturnType<typeof parseS57>;
+let base: ArrayBuffer;
+beforeAll(() => { base = readArrayBuffer(SAMPLE_CELL); });
 
-  beforeAll(() => {
-    baseDataset = parseS57(loadBuffer(BASE_PATH));
+const fresh = (): S57Dataset => parseS57(base);
+const update = (...records: Field[][]): ArrayBuffer =>
+  file(ddr(S57_FIELDS), dr([['DSID', s57.dsid('US5MA12M.001', '1')]]), ...records.map(dr));
+const feature = (ds: S57Dataset, rcid: number) => ds.features.find(f => f.rcid === rcid);
+const spatial = (ds: S57Dataset, rcnm: number, rcid: number) => ds.spatialRecords.get(spatialKey(rcnm, rcid));
+
+describe('applyUpdate — dataset records', () => {
+  it('renames the dataset to the update file name and returns the same object', () => {
+    const ds = fresh();
+    expect(applyUpdate(ds, update())).toBe(ds);
+    expect(ds.name).toBe('US5MA12M.001');
   });
 
-  it('should parse the update file without error', () => {
-    const dataset = { ...baseDataset, features: [...baseDataset.features], spatialRecords: new Map(baseDataset.spatialRecords) };
-    expect(() => applyUpdate(dataset, loadBuffer(UPDATE_PATH))).not.toThrow();
+  it('applies DSPM parameters carried by an update', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['DSPM', s57.dspm(1_000_000, 100, 25000)]]));
+    expect(ds.comf).toBe(1_000_000);
+    expect(ds.somf).toBe(100);
   });
 
-  it('should update dataset name to .001', () => {
-    const dataset = { ...baseDataset, features: [...baseDataset.features], spatialRecords: new Map(baseDataset.spatialRecords) };
-    applyUpdate(dataset, loadBuffer(UPDATE_PATH));
-    expect(dataset.name).toBe('US5MA19M.001');
-  });
-
-  it('should preserve all features after metadata-only update', () => {
-    const featureCount = baseDataset.features.length;
-    const spatialCount = baseDataset.spatialRecords.size;
-    const dataset = { ...baseDataset, features: [...baseDataset.features], spatialRecords: new Map(baseDataset.spatialRecords) };
-    applyUpdate(dataset, loadBuffer(UPDATE_PATH));
-    expect(dataset.features.length).toBe(featureCount);
-    expect(dataset.spatialRecords.size).toBe(spatialCount);
-  });
-
-  it('should still produce valid GeoJSON after update', () => {
-    const dataset = { ...baseDataset, features: [...baseDataset.features], spatialRecords: new Map(baseDataset.spatialRecords) };
-    applyUpdate(dataset, loadBuffer(UPDATE_PATH));
-    const geo = toGeoJSON(dataset);
-    expect(geo.type).toBe('FeatureCollection');
-    expect(geo.features.length).toBeGreaterThan(0);
-    const withGeom = geo.features.filter(f => f.geometry != null).length;
-    expect(withGeom).toBeGreaterThan(40);
+  it('leaves features and geometry alone when the update has no records', () => {
+    const ds = fresh();
+    applyUpdate(ds, update());
+    expect(ds.features.length).toBe(2406);
+    expect(ds.spatialRecords.size).toBe(4678);
   });
 });
 
-describe('S-57 update mechanism — synthetic operations', () => {
-  let baseDataset: ReturnType<typeof parseS57>;
-
-  beforeAll(() => {
-    baseDataset = parseS57(loadBuffer(BASE_PATH));
+describe('applyUpdate — feature records', () => {
+  it('deletes a feature (RUIN=2)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['FRID', s57.frid(109, DELETE)]]));
+    expect(feature(ds, 109)).toBeUndefined();
+    expect(ds.features.length).toBe(2405);
   });
 
-  function cloneDataset() {
-    return {
-      ...baseDataset,
-      features: baseDataset.features.map(f => ({
-        ...f,
-        attributes: new Map(f.attributes),
-        spatialRefs: [...f.spatialRefs],
-      })),
-      spatialRecords: new Map(baseDataset.spatialRecords),
-    };
-  }
-
-  it('feature delete removes the feature', () => {
-    const ds = cloneDataset();
-    const initialCount = ds.features.length;
-    const targetRcid = ds.features[0].rcid;
-
-    // Simulate: find and delete first feature
-    const idx = ds.features.findIndex(f => f.rcid === targetRcid);
-    ds.features.splice(idx, 1);
-
-    expect(ds.features.length).toBe(initialCount - 1);
-    expect(ds.features.find(f => f.rcid === targetRcid)).toBeUndefined();
+  it('inserts a feature and its isolated node (RUIN=1)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update(
+      [['VRID', s57.vrid(IN, 9001, INSERT, 1)], ['SG2D', s57.sg2d([[42.3, -71]])]],
+      [
+        ['FRID', s57.frid(9001, INSERT, { prim: 1, objl: 75, rver: 1 })],
+        ['FOID', s57.foid(550, 123456, 1)],
+        ['ATTF', s57.attf([[75, '3'], [107, '2']])],
+        ['FSPT', s57.fspt([{ rcnm: IN, rcid: 9001, ornt: 255, usag: 255 }])],
+      ],
+    ));
+    const f = feature(ds, 9001)!;
+    expect(f).toMatchObject({ objl: 75, prim: 1, grup: 2, foid: { agen: 550, fidn: 123456, fids: 1 } });
+    expect(Object.fromEntries(f.attributes)).toEqual({ 75: '3', 107: '2' });
+    const geo = toGeoJSON(ds).features.find(g => g.properties.RCID === 9001)!;
+    expect(geo.geometry).toEqual({ type: 'Point', coordinates: [-71, 42.3] });
   });
 
-  it('spatial record insert adds to the map', () => {
-    const ds = cloneDataset();
-    const initialSize = ds.spatialRecords.size;
-
-    // Simulate: insert a new connected node
-    const newKey = 120 * 100000 + 99999;
-    ds.spatialRecords.set(newKey, {
-      rcid: 99999,
-      rcnm: 120,
-      coordinates2D: [{ lat: 42.5, lon: -70.7 }],
-      coordinates3D: [],
-    });
-
-    expect(ds.spatialRecords.size).toBe(initialSize + 1);
-    expect(ds.spatialRecords.get(newKey)?.coordinates2D[0].lat).toBe(42.5);
+  it('modifies, adds and deletes attributes (RUIN=3)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['FRID', s57.frid(13, MODIFY, { prim: 1, objl: 17 })],
+      ['ATTF', s57.attf([[116, 'Neponset River Buoy 6'], [142, '4'], [148, '\x7f']])],
+    ]));
+    const attrs = feature(ds, 13)!.attributes;
+    expect(attrs.get(116)).toBe('Neponset River Buoy 6');
+    expect(attrs.get(142)).toBe('4');
+    expect(attrs.has(148)).toBe(false);
+    expect(attrs.get(147)).toBe('20010714');
   });
 
-  it('attribute modify updates the feature', () => {
-    const ds = cloneDataset();
-    const feature = ds.features.find(f => f.attributes.size > 0)!;
-    const [attl] = feature.attributes.keys();
-
-    feature.attributes.set(attl, 'UPDATED_VALUE');
-    expect(feature.attributes.get(attl)).toBe('UPDATED_VALUE');
+  it('replaces the FOID of a modified feature', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['FRID', s57.frid(13, MODIFY, { prim: 1, objl: 17 })], ['FOID', s57.foid(550, 1, 2)]]));
+    expect(feature(ds, 13)!.foid).toEqual({ agen: 550, fidn: 1, fids: 2 });
   });
 
-  it('spatial ref splice inserts at correct position', () => {
-    const ds = cloneDataset();
-    const feature = ds.features.find(f => f.spatialRefs.length > 1)!;
-    const initialLen = feature.spatialRefs.length;
+  // Line 174 (COALNE) uses edges 129, 130, 132, 133, 134.
+  const refIds = (ds: S57Dataset) => feature(ds, 174)!.spatialRefs.map(r => r.rcid);
 
-    const newRef = { rcnm: 130, rcid: 99999, ornt: 1, usag: 1, mask: 255 };
-    feature.spatialRefs.splice(1, 0, newRef);
+  it('inserts spatial pointers at FSIX (FSUI=1)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['FRID', s57.frid(174, MODIFY, { prim: 2, objl: 30 })],
+      ['FSPC', s57.control(INSERT, 2, 1)],
+      ['FSPT', s57.fspt([{ rcnm: ED, rcid: 131, mask: 2, usag: 255 }])],
+    ]));
+    expect(refIds(ds)).toEqual([129, 131, 130, 132, 133, 134]);
+  });
 
-    expect(feature.spatialRefs.length).toBe(initialLen + 1);
-    expect(feature.spatialRefs[1].rcid).toBe(99999);
+  it('deletes NSPT spatial pointers from FSIX (FSUI=2, no FSPT field)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['FRID', s57.frid(174, MODIFY, { prim: 2, objl: 30 })], ['FSPC', s57.control(DELETE, 3, 2)]]));
+    expect(refIds(ds)).toEqual([129, 130, 134]);
+  });
+
+  it('replaces spatial pointers in place (FSUI=3)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['FRID', s57.frid(174, MODIFY, { prim: 2, objl: 30 })],
+      ['FSPC', s57.control(MODIFY, 1, 1)],
+      ['FSPT', s57.fspt([{ rcnm: ED, rcid: 129, ornt: 1, mask: 2, usag: 255 }])],
+    ]));
+    expect(feature(ds, 174)!.spatialRefs[0]).toEqual({ rcnm: ED, rcid: 129, ornt: 1, usag: 255, mask: 2 });
+    expect(refIds(ds)).toEqual([129, 130, 132, 133, 134]);
+  });
+
+  it('ignores modify and delete instructions for unknown features', () => {
+    const ds = fresh();
+    applyUpdate(ds, update(
+      [['FRID', s57.frid(99999, DELETE)]],
+      [['FRID', s57.frid(99998, MODIFY)], ['ATTF', s57.attf([[116, 'x']])]],
+    ));
+    expect(ds.features.length).toBe(2406);
+  });
+});
+
+describe('applyUpdate — spatial records', () => {
+  it('deletes a spatial record (RUIN=2)', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['VRID', s57.vrid(IN, 1000, DELETE)]]));
+    expect(spatial(ds, IN, 1000)).toBeUndefined();
+    expect(spatial(ds, IN, 999)).toBeDefined();
+  });
+
+  it('inserts an edge with its end nodes from VRPT', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['VRID', s57.vrid(ED, 9001, INSERT, 1)],
+      ['VRPT', s57.vrpt([{ rcnm: CN, rcid: 1777, topi: 1 }, { rcnm: CN, rcid: 1779, topi: 2 }])],
+      ['SG2D', s57.sg2d([[42.3, -70.82]])],
+    ]));
+    expect(spatial(ds, ED, 9001)).toMatchObject({ rcnm: ED, startNodeRcid: 1777, endNodeRcid: 1779, coordinates2D: [{ lat: 42.3, lon: -70.82 }] });
+  });
+
+  // Edge 1 runs from node 1777 to node 1779 through 1080 vertices.
+  const edge1 = (ds: S57Dataset) => spatial(ds, ED, 1)!;
+
+  it('replaces CCNC coordinates at CCIX (CCUI=3)', () => {
+    const ds = fresh();
+    const before = edge1(ds).coordinates2D.slice();
+    applyUpdate(ds, update([
+      ['VRID', s57.vrid(ED, 1, MODIFY)],
+      ['SGCC', s57.control(MODIFY, 2, 2)],
+      ['SG2D', s57.sg2d([[42.31, -70.81], [42.32, -70.82]])],
+    ]));
+    const after = edge1(ds).coordinates2D;
+    expect(after.length).toBe(1080);
+    expect(after[0]).toEqual(before[0]);
+    expect(after.slice(1, 3)).toEqual([{ lat: 42.31, lon: -70.81 }, { lat: 42.32, lon: -70.82 }]);
+    expect(after[3]).toEqual(before[3]);
+  });
+
+  it('inserts coordinates before CCIX (CCUI=1)', () => {
+    const ds = fresh();
+    const before = edge1(ds).coordinates2D.slice();
+    applyUpdate(ds, update([
+      ['VRID', s57.vrid(ED, 1, MODIFY)],
+      ['SGCC', s57.control(INSERT, 1, 1)],
+      ['SG2D', s57.sg2d([[42.29, -70.81]])],
+    ]));
+    expect(edge1(ds).coordinates2D.length).toBe(1081);
+    expect(edge1(ds).coordinates2D[0]).toEqual({ lat: 42.29, lon: -70.81 });
+    expect(edge1(ds).coordinates2D[1]).toEqual(before[0]);
+  });
+
+  it('deletes coordinates without a coordinate field (CCUI=2)', () => {
+    const ds = fresh();
+    const before = edge1(ds).coordinates2D.slice();
+    applyUpdate(ds, update([['VRID', s57.vrid(ED, 1, MODIFY)], ['SGCC', s57.control(DELETE, 1, 3)]]));
+    expect(edge1(ds).coordinates2D).toEqual(before.slice(3));
+  });
+
+  it('edits sounding arrays through SG3D', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['VRID', s57.vrid(IN, 999, MODIFY)],
+      ['SGCC', s57.control(MODIFY, 1, 1)],
+      ['SG3D', s57.sg3d([[42.3053, -71.0524, 1.8]])],
+    ]));
+    expect(spatial(ds, IN, 999)!.coordinates3D[0]).toEqual({ lat: 42.3053, lon: -71.0524, depth: 1.8 });
+  });
+
+  it('deletes soundings when the record has no SG3D field', () => {
+    const ds = fresh();
+    const n = spatial(ds, IN, 999)!.coordinates3D.length;
+    applyUpdate(ds, update([['VRID', s57.vrid(IN, 999, MODIFY)], ['SGCC', s57.control(DELETE, 1, 2)]]));
+    expect(spatial(ds, IN, 999)!.coordinates3D.length).toBe(n - 2);
+  });
+
+  it('moves an edge end node through VRPC/VRPT', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([
+      ['VRID', s57.vrid(ED, 1, MODIFY)],
+      ['VRPC', s57.control(MODIFY, 2, 1)],
+      ['VRPT', s57.vrpt([{ rcnm: CN, rcid: 1778, topi: 2 }])],
+    ]));
+    expect(edge1(ds)).toMatchObject({ startNodeRcid: 1777, endNodeRcid: 1778 });
+  });
+
+  it('ignores modifications of unknown spatial records', () => {
+    const ds = fresh();
+    applyUpdate(ds, update([['VRID', s57.vrid(ED, 99999, MODIFY)], ['SGCC', s57.control(DELETE, 1, 1)]]));
+    expect(ds.spatialRecords.size).toBe(4678);
+  });
+});
+
+describe.skipIf(!hasNoaaUS5MA19M)('applyUpdate — NOAA US5MA19M.001 (downloaded)', () => {
+  it('applies the real update and still produces GeoJSON', () => {
+    const ds = parseS57(readArrayBuffer(`${NOAA_US5MA19M_DIR}/US5MA19M.000`));
+    const before = ds.features.length;
+    applyUpdate(ds, readArrayBuffer(`${NOAA_US5MA19M_DIR}/US5MA19M.001`));
+    expect(ds.name).toBe('US5MA19M.001');
+    expect(ds.features.length).toBe(before);
+    expect(toGeoJSON(ds).features.filter(f => f.geometry).length).toBeGreaterThan(40);
   });
 });

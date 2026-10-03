@@ -4,6 +4,7 @@ import { join } from 'path';
 import { parseS57, spatialKey } from '../src/parser.js';
 import { applyUpdate } from '../src/update.js';
 import type { S57Dataset } from '../src/types.js';
+import { hasNoaaUS5MA19M } from '../../../test-utils/fixtures.js';
 
 const root = join(import.meta.dir, '../../..');
 const read = (p: string): ArrayBuffer => {
@@ -41,7 +42,7 @@ function problems(ds: S57Dataset): { missing: number; broken: number } {
 // Stopping on it dropped records and the tail of coordinate lists, which drew
 // fans of triangles. Every reference must resolve and every edge chain connect.
 describe('topology integrity on real NOAA cells', () => {
-  it('US5MA19M with its updates', () => {
+  it.skipIf(!hasNoaaUS5MA19M)('US5MA19M with its updates (downloaded)', () => {
     expect(problems(load('test-data/US5MA19M/ENC_ROOT/US5MA19M', 'US5MA19M'))).toEqual({ missing: 0, broken: 0 });
   });
 

@@ -10,32 +10,36 @@
       "devDependencies": {
         "leaflet": "^1.9.4",
         "maplibre-gl": "^5",
+        "typescript": "^5.8.0",
       },
     },
     "packages/cli": {
       "name": "@s57-parser/cli",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "bin": {
         "s57": "./dist/index.js",
       },
       "dependencies": {
         "@s57-parser/iso8211": "workspace:*",
+        "@s57-parser/s101": "workspace:*",
+        "@s57-parser/s52-render": "workspace:*",
         "@s57-parser/s57": "workspace:*",
       },
       "devDependencies": {
+        "@types/node": "^22",
         "typescript": "^5.8.0",
       },
     },
     "packages/iso8211": {
       "name": "@s57-parser/iso8211",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "devDependencies": {
         "typescript": "^5.8.0",
       },
     },
     "packages/leaflet": {
       "name": "@s57-parser/leaflet",
-      "version": "0.1.2",
+      "version": "0.3.0",
       "dependencies": {
         "@s57-parser/s101": "workspace:*",
         "@s57-parser/s52-render": "workspace:*",
@@ -52,7 +56,7 @@
     },
     "packages/maplibre": {
       "name": "@s57-parser/maplibre",
-      "version": "0.1.2",
+      "version": "0.3.0",
       "dependencies": {
         "@s57-parser/s101": "workspace:*",
         "@s57-parser/s52-render": "workspace:*",
@@ -69,7 +73,7 @@
     },
     "packages/s101": {
       "name": "@s57-parser/s101",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "dependencies": {
         "@s57-parser/iso8211": "workspace:*",
       },
@@ -79,7 +83,7 @@
     },
     "packages/s52-render": {
       "name": "@s57-parser/s52-render",
-      "version": "0.1.1",
+      "version": "0.3.0",
       "dependencies": {
         "@s57-parser/s57": "workspace:*",
       },
@@ -89,7 +93,7 @@
     },
     "packages/s57": {
       "name": "@s57-parser/s57",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "dependencies": {
         "@s57-parser/iso8211": "workspace:*",
       },
@@ -137,6 +141,8 @@
 
     "@types/leaflet": ["@types/leaflet@1.9.21", "", { "dependencies": { "@types/geojson": "*" } }, "sha512-TbAd9DaPGSnzp6QvtYngntMZgcRk+igFELwR2N99XZn7RXUdKgsXMR+28bUO0rPsWp8MIu/f47luLIQuSLYv/w=="],
 
+    "@types/node": ["@types/node@22.20.5", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA=="],
+
     "earcut": ["earcut@3.0.2", "", {}, "sha512-X7hshQbLyMJ/3RPhyObLARM2sNxxmRALLKx1+NVFFnQ9gKzmCrxm9+uLIAdBcvc8FNLpctqlQ2V6AE92Ol9UDQ=="],
 
     "fflate": ["fflate@0.8.3", "", {}, "sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA=="],
@@ -168,6 +174,8 @@
     "tinyqueue": ["tinyqueue@3.0.0", "", {}, "sha512-gRa9gwYU3ECmQYv3lslts5hxuIa90veaEcxDYuu3QGOIAEM2mOZkVHp48ANJuu1CURtRdHKUBY5Lm1tHV+sD4g=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+
+    "undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "@maplibre/vt-pbf/pbf": ["pbf@5.1.0", "", { "dependencies": { "resolve-protobuf-schema": "^2.1.0" }, "bin": { "pbf": "bin/pbf" } }, "sha512-Wv0yo0+uZepnoNEKsquhar1F18LogB8oeEikIhUXG16udbiXG7JecHGySwoo6kuMgjmbQYzdrTZlO+/K9t8eZg=="],
   }
