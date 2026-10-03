@@ -28,7 +28,9 @@ for (const p of order) {
   if (dryRun) continue;
 
   withPublishManifest(p, order, () => {
-    const proc = Bun.spawnSync(['npm', 'publish', '--access', 'public'], {
+    // npm is a .cmd shim on Windows, which spawn does not resolve by itself.
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const proc = Bun.spawnSync([npm, 'publish', '--access', 'public'], {
       cwd: p.dir,
       stdout: 'inherit',
       stderr: 'inherit',

@@ -26,6 +26,12 @@ const failures: string[] = [];
 const fail = (msg: string) => { failures.push(msg); console.error(`  FAIL ${msg}`); };
 
 function sh(cmd: string[], cwd: string): string {
+  // On Windows npm, npx and node_modules/.bin entries are .cmd shims, which
+  // spawn does not resolve by itself.
+  if (process.platform === 'win32') {
+    if (/^(npm|npx)$/.test(cmd[0])) cmd = [`${cmd[0]}.cmd`, ...cmd.slice(1)];
+    else if (existsSync(resolve(cwd, `${cmd[0]}.cmd`))) cmd = [resolve(cwd, `${cmd[0]}.cmd`), ...cmd.slice(1)];
+  }
   const p = Bun.spawnSync(cmd, { cwd, stdout: 'pipe', stderr: 'pipe', env: { ...process.env, npm_config_update_notifier: 'false' } });
   if (p.exitCode !== 0) {
     throw new Error(`${cmd.join(' ')} (in ${cwd}) exited with ${p.exitCode}\n${p.stdout.toString()}${p.stderr.toString()}`);
