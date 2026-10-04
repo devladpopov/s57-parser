@@ -36,6 +36,7 @@ jobs:
         run: |
           mkdir -p _site/dist _site/charts
           cp demo/index.html demo/catalog.html demo/leaflet.html demo/maplibre.html _site/
+          cp demo/plotter.html demo/plotter-sw.js demo/plotter.webmanifest demo/plotter-icon.svg _site/
           cp demo/catalog-index.json _site/
           cp demo/dist/*.js _site/dist/
           cp demo/dist/s57-viewer.html _site/

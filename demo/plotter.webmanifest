@@ -1,0 +1,14 @@
+{
+  "name": "S-57 Plotter",
+  "short_name": "Plotter",
+  "description": "Offline S-57 nautical chart plotter (prototype, not for navigation)",
+  "start_url": "./plotter.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b3d5c",
+  "theme_color": "#0b3d5c",
+  "icons": [
+    { "src": "./plotter-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

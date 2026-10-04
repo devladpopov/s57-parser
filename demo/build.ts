@@ -22,7 +22,7 @@ const viewer = await Bun.build({
 
 const pages = await Bun.build({
   ...common,
-  entrypoints: ['./demo/catalog.ts', './demo/leaflet-demo.ts', './demo/maplibre-demo.ts'],
+  entrypoints: ['./demo/catalog.ts', './demo/leaflet-demo.ts', './demo/maplibre-demo.ts', './demo/plotter.ts'],
   format: 'esm',
   sourcemap: 'none',
 });
