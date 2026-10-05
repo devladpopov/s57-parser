@@ -19,6 +19,10 @@ export interface S57Dataset {
   somf: number;
   /** Compilation scale denominator from DSPM (e.g. 20000 for 1:20 000), if present */
   cscl?: number;
+  /** National attribute lexical level from DSSI NALL (0 ASCII, 1 ISO 8859-1, 2 UCS-2), if present */
+  nall?: number;
+  /** Encoding used for 8-bit attribute text (ParseOptions.textEncoding); updates reuse it */
+  textEncoding?: string;
   /** All feature records */
   features: FeatureRecord[];
   /** All spatial records, keyed by compound key (rcnm * 100000 + rcid) */

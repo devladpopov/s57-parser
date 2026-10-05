@@ -13,7 +13,11 @@ const SHELL_URLS = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(SHELL_URLS)).then(() => self.skipWaiting()));
+  // One by one: in the Android app the Leaflet CSS is local and the unpkg
+  // copy may be unreachable, which must not fail the whole install.
+  e.waitUntil(caches.open(SHELL)
+    .then((c) => Promise.allSettled(SHELL_URLS.map((u) => c.add(u))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));

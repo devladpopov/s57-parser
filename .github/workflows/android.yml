@@ -1,0 +1,67 @@
+name: Android plotter APK
+
+# Builds the offline chartplotter (demo/plotter) as an Android app with
+# Capacitor. The android/ project is generated on every run, nothing native is
+# kept in the repository. Push a tag like plotter-v0.1.0 to attach the APK to a
+# GitHub pre-release; manual runs only upload a workflow artifact.
+
+on:
+  push:
+    tags: ['plotter-v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build plotter bundle
+        run: |
+          bun install --frozen-lockfile
+          bun demo/build.ts
+          bash apps/android-plotter/build-www.sh
+
+      - name: Generate Android project
+        working-directory: apps/android-plotter
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          # GPS for own-ship position; GPS hardware is optional (Wi-Fi tablets).
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+          npx cap sync android
+
+      - name: Build APK
+        working-directory: apps/android-plotter/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/s57-plotter.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: s57-plotter-apk
+          path: s57-plotter.apk
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/plotter-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" s57-plotter.apk --prerelease \
+            --title "S-57 Plotter for Android ${GITHUB_REF_NAME#plotter-v}" \
+            --notes "Offline S-57 chartplotter prototype for Android (debug-signed APK, install manually). Not for navigation."

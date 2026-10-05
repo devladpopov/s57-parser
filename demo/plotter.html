@@ -9,42 +9,50 @@
 html,body,#map{margin:0;height:100%}
 body{font:14px system-ui,sans-serif}
 .panel{position:absolute;z-index:1000;background:#fff;border-radius:6px;box-shadow:0 1px 6px #0004;padding:8px}
-#menu{left:8px;top:8px;max-width:300px;max-height:calc(100% - 140px);overflow:auto}
+#menu{left:8px;top:8px;max-width:310px;max-height:calc(100% - 140px);overflow:auto}
 #menu summary{cursor:pointer;font-weight:600}
 #menu input[type=text]{width:120px}
 #menu ul{padding-left:16px;margin:4px 0}
+#menu p{margin:4px 0}
+.pick{display:inline-block;margin:2px 4px 2px 0}
+.pick input{display:none}
 #inst{left:8px;bottom:24px;display:flex;gap:14px;align-items:flex-end}
 #inst div{text-align:center}
 #inst b{display:block;font-size:22px}
 #inst small{color:#666}
 #ctl{right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
-button{font:inherit;padding:6px 10px;border:1px solid #888;border-radius:4px;background:#f4f4f4;cursor:pointer}
+button,.pick span{font:inherit;padding:6px 10px;border:1px solid #888;border-radius:4px;background:#f4f4f4;cursor:pointer;display:inline-block}
 button.on{background:#0b3d5c;color:#fff;border-color:#0b3d5c}
-#status{margin-top:6px;color:#444;font-size:12px}
+#status{margin-top:6px;color:#444;font-size:12px;max-width:290px}
 body[data-mode=NIGHT] .panel,body[data-mode=DUSK] .panel{background:#111;color:#c66}
 body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
 </style>
 </head><body>
 <div id="map"></div>
 <div id="menu" class="panel">
-  <details open><summary>S-57 Plotter</summary>
-    <p style="margin:4px 0"><label>Open charts (.000, .001…, .zip)<br><input id="file" type="file" multiple accept=".zip,.000,.001,.002,.003,.004,.005,.006,.007,.008,.009"></label></p>
-    <p style="margin:4px 0">NOAA cell <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go">Get</button></p>
-    <p style="margin:4px 0">Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go">Connect</button></p>
-    <p style="margin:4px 0">Display <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
-    <div>Charts on this device:<ul id="charts"></ul></div>
-    <p style="margin:4px 0;font-size:11px;color:#a00">Not for navigation. Prototype.</p>
+  <details open><summary data-ru="S-57 Картплоттер">S-57 Plotter</summary>
+    <p>
+      <label class="pick"><input id="file" type="file" multiple><span data-ru="Открыть файлы">Open files</span></label>
+      <label class="pick"><input id="folder" type="file" webkitdirectory multiple><span data-ru="Открыть папку">Open folder</span></label>
+    </p>
+    <p style="font-size:11px;color:#666" data-ru="S-57: .000 с обновлениями .001… или .zip. Папка: например, ENC_ROOT с флешки, все карты сразу.">S-57: .000 with .001… updates, or .zip. Folder: e.g. ENC_ROOT from a USB stick, all cells at once.</p>
+    <p><span data-ru="Карта NOAA">NOAA cell</span> <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go" data-ru="Скачать">Get</button></p>
+    <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
+    <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
+    <p><span data-ru="Кодировка текста">Text encoding</span> <select id="enc"><option value="auto">auto</option><option value="latin1">ISO 8859-1</option><option value="windows-1251">Windows-1251</option></select></p>
+    <div><span data-ru="Карты на устройстве:">Charts on this device:</span><ul id="charts"></ul></div>
+    <p style="font-size:11px;color:#a00" data-ru="Не для навигации. Прототип.">Not for navigation. Prototype.</p>
   </details>
   <div id="status"></div>
 </div>
 <div id="ctl" class="panel">
   <button id="gps">GPS</button>
-  <button id="follow" class="on">Follow</button>
+  <button id="follow" class="on" data-ru="Следить">Follow</button>
 </div>
 <div id="inst" class="panel">
-  <div><small>SOG</small><b id="sog">–</b></div>
-  <div><small>COG</small><b id="cog">–</b></div>
-  <div><small>Depth</small><b id="depth">–</b></div>
+  <div><small data-ru="Скорость">SOG</small><b id="sog">–</b></div>
+  <div><small data-ru="Курс">COG</small><b id="cog">–</b></div>
+  <div><small data-ru="Глубина">Depth</small><b id="depth">–</b></div>
   <div><small id="src"></small></div>
 </div>
 <script type="module" src="./dist/plotter.js"></script>

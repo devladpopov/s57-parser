@@ -1,0 +1,9 @@
+{
+  "appId": "io.github.devladpopov.s57plotter",
+  "appName": "S-57 Plotter",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}

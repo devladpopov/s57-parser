@@ -14,18 +14,30 @@ import type {
   Coordinate3D,
 } from './types.js';
 import { GeomPrimitive, SpatialType } from './types.js';
+import { decode8bit, readNatf } from './text.js';
+
+export interface ParseOptions {
+  /**
+   * Encoding of 8-bit attribute text (lexical levels 0/1), as a TextDecoder
+   * label. The default is ISO 8859-1 as the standard says; use
+   * 'windows-1251' for charts that store Cyrillic in ATTF/NATF as 8-bit text.
+   */
+  textEncoding?: string;
+}
 
 /**
  * Parse an S-57 .000 file from an ArrayBuffer.
  * Returns a structured S57Dataset with features and spatial records.
  */
-export function parseS57(buffer: ArrayBuffer): S57Dataset {
+export function parseS57(buffer: ArrayBuffer, options: ParseOptions = {}): S57Dataset {
+  const textEncoding = options.textEncoding;
   const iso = parseISO8211(buffer);
 
   let name = '';
   let comf = 10_000_000; // default
   let somf = 10;         // default
   let cscl: number | undefined;
+  let nall: number | undefined;
 
   const features: FeatureRecord[] = [];
   const spatialRecords = new Map<number, SpatialRecord>();
@@ -38,6 +50,8 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
     if (dsid) {
       name = getSubfieldStr(dsid, 'DSNM') ?? name;
     }
+    const dssi = fieldMap.get('DSSI');
+    if (dssi) nall = getSubfieldNum(dssi, 'NALL') ?? nall;
 
     // Dataset Parameter — provides COMF and SOMF
     const dspm = fieldMap.get('DSPM');
@@ -57,12 +71,12 @@ export function parseS57(buffer: ArrayBuffer): S57Dataset {
     // Feature Record
     const frid = fieldMap.get('FRID');
     if (frid) {
-      const feature = parseFeatureRecord(frid, fieldMap);
+      const feature = parseFeatureRecord(frid, fieldMap, nall ?? 1, textEncoding);
       if (feature) features.push(feature);
     }
   }
 
-  return { name, comf, somf, cscl, features, spatialRecords };
+  return { name, comf, somf, cscl, nall, textEncoding, features, spatialRecords };
 }
 
 /** Build a tag → field map for quick lookup within a record. */
@@ -155,7 +169,9 @@ function parseSpatialRecord(
 /** Parse a feature record from FRID and related fields. */
 function parseFeatureRecord(
   frid: ISO8211Field,
-  fieldMap: Map<string, ISO8211Field>
+  fieldMap: Map<string, ISO8211Field>,
+  nall: number,
+  textEncoding: string | undefined,
 ): FeatureRecord | null {
   const rcid = getSubfieldNum(frid, 'RCID');
   const objl = getSubfieldNum(frid, 'OBJL');
@@ -172,10 +188,13 @@ function parseFeatureRecord(
       const attl = getNumericValue(subfields[i]);
       const atvl = subfields[i + 1];
       if (attl != null && atvl) {
-        attributes.set(attl, atvl.type === 'string' ? atvl.value : String(atvl.value));
+        attributes.set(attl, atvl.type === 'string' ? decode8bit(atvl.value, textEncoding) : String(atvl.value));
       }
     }
   }
+  // National attributes (NATF): NOBJNM, NINFOM, ... in the national lexical level
+  const natf = fieldMap.get('NATF');
+  if (natf) for (const [attl, value] of readNatf(natf, nall, textEncoding)) attributes.set(attl, value);
 
   // Spatial references (FSPT): repeating NAME/ORNT/USAG/MASK groups
   const spatialRefs: SpatialRef[] = [];

@@ -20,6 +20,7 @@ import type {
 } from './types.js';
 import { GeomPrimitive, SpatialType } from './types.js';
 import { spatialKey } from './parser.js';
+import { decode8bit, readNatf } from './text.js';
 
 /** Record Update INstruction codes */
 const RUIN_INSERT = 1;
@@ -153,7 +154,7 @@ function applyFeatureUpdate(
   if (rcid == null) return;
 
   if (ruin === RUIN_INSERT) {
-    const feature = buildFeatureFromFields(frid, fieldMap);
+    const feature = buildFeatureFromFields(frid, fieldMap, dataset);
     if (feature) dataset.features.push(feature);
     return;
   }
@@ -185,13 +186,20 @@ function applyFeatureUpdate(
         const attl = getNumericValue(subfields[i]);
         const atvl = subfields[i + 1];
         if (attl != null && atvl) {
-          const val = atvl.type === 'string' ? atvl.value : String(atvl.value);
+          const val = atvl.type === 'string' ? decode8bit(atvl.value, dataset.textEncoding) : String(atvl.value);
           if (val === '' || val === '\x7f') {
             existing.attributes.delete(attl); // DELETE sentinel
           } else {
             existing.attributes.set(attl, val);
           }
         }
+      }
+    }
+    const natf = fieldMap.get('NATF');
+    if (natf) {
+      for (const [attl, val] of readNatf(natf, dataset.nall ?? 1, dataset.textEncoding)) {
+        if (val === '' || val === '') existing.attributes.delete(attl);
+        else existing.attributes.set(attl, val);
       }
     }
 
@@ -280,7 +288,8 @@ function buildSpatialFromFields(
 
 function buildFeatureFromFields(
   frid: ISO8211Field,
-  fieldMap: Map<string, ISO8211Field>
+  fieldMap: Map<string, ISO8211Field>,
+  dataset: S57Dataset,
 ): FeatureRecord | null {
   const rcid = getSubfieldNum(frid, 'RCID');
   const objl = getSubfieldNum(frid, 'OBJL');
@@ -296,10 +305,12 @@ function buildFeatureFromFields(
       const attl = getNumericValue(subfields[i]);
       const atvl = subfields[i + 1];
       if (attl != null && atvl) {
-        attributes.set(attl, atvl.type === 'string' ? atvl.value : String(atvl.value));
+        attributes.set(attl, atvl.type === 'string' ? decode8bit(atvl.value, dataset.textEncoding) : String(atvl.value));
       }
     }
   }
+  const natf = fieldMap.get('NATF');
+  if (natf) for (const [attl, val] of readNatf(natf, dataset.nall ?? 1, dataset.textEncoding)) attributes.set(attl, val);
 
   const fspt = fieldMap.get('FSPT');
   const spatialRefs = fspt ? parseSpatialRefs(fspt) : [];

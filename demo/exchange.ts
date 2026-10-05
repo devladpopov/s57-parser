@@ -43,6 +43,20 @@ export function unzipExchangeSet(buffer: ArrayBuffer): ChartFile[] {
 }
 
 /**
+ * Split a flat list of chart files (a whole ENC_ROOT folder, a USB stick, an
+ * archive with many cells) into one exchange set per base `.000` cell.
+ */
+export function groupExchangeSets(files: ChartFile[]): ExchangeSet[] {
+  const sets: ExchangeSet[] = [];
+  for (const base of files.filter(f => BASE_RE.test(fileName(f.name)))) {
+    const stem = fileName(base.name).replace(BASE_RE, '');
+    const own = files.filter(f => f === base || fileName(f.name).slice(0, -4) === stem);
+    sets.push(assembleExchangeSet([base, ...own.filter(f => f !== base)])!);
+  }
+  return sets;
+}
+
+/**
  * From a flat list of chart files (unzipped archive or multi-file drop), pick
  * the base `.000` cell and its ordered update files that share the same stem.
  * Returns null if no base cell is present.

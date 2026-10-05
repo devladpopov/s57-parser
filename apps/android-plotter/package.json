@@ -1,0 +1,11 @@
+{
+  "name": "s57-plotter-android",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Android build of the S-57 offline chartplotter (demo/plotter) via Capacitor",
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

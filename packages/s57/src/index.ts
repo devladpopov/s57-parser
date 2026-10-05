@@ -6,6 +6,7 @@
  */
 
 export { parseS57, spatialKey } from './parser.js';
+export type { ParseOptions } from './parser.js';
 export { toGeoJSON } from './geojson.js';
 export { applyUpdate } from './update.js';
 export type {

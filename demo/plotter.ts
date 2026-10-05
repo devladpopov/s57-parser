@@ -15,13 +15,22 @@ import { S57Layer } from '../packages/leaflet/src/index.js';
 import { parseS57 } from '../packages/s57/src/parser.js';
 import { applyUpdate } from '../packages/s57/src/update.js';
 import { toGeoJSON } from '../packages/s57/src/geojson.js';
+import type { S57Dataset } from '../packages/s57/src/types.js';
 import type { DisplayMode } from '../packages/s52-render/src/colors.js';
-import { assembleExchangeSet, unzipExchangeSet, type ChartFile } from './exchange.js';
+import { assembleExchangeSet, groupExchangeSets, unzipExchangeSet, type ChartFile, type ExchangeSet } from './exchange.js';
 import { fetchEncZip } from './enc-fetch.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const statusEl = $('status');
-const setStatus = (t: string) => { statusEl.textContent = t; };
+const setStatus = (text: string) => { statusEl.textContent = text; };
+
+// Russian or English UI, by the device language.
+const RU = navigator.language.toLowerCase().startsWith('ru');
+const t = (en: string, ru: string) => (RU ? ru : en);
+if (RU) {
+  document.documentElement.lang = 'ru';
+  for (const el of document.querySelectorAll<HTMLElement>('[data-ru]')) el.textContent = el.dataset.ru!;
+}
 
 // ─── Map ────────────────────────────────────────────────────────────────────
 
@@ -63,23 +72,61 @@ const allCharts = () => tx<StoredChart[]>('readonly', s => s.getAll());
 
 // ─── Chart loading ──────────────────────────────────────────────────────────
 
-function buildLayer(files: ChartFile[]): { name: string; layer: S57Layer } {
-  const set = assembleExchangeSet(files);
-  if (!set) throw new Error('no base .000 cell');
-  let dataset = parseS57(set.base.buffer);
-  for (const u of set.updates) dataset = applyUpdate(dataset, u.buffer);
+// Text encoding of 8-bit chart text. 'auto' switches to Windows-1251 when the
+// names in a cell look like Cyrillic stored as 8-bit bytes (some Russian river
+// and sea charts), otherwise ISO 8859-1 as the standard says.
+const encSelect = $<HTMLSelectElement>('enc');
+encSelect.value = localStorage.getItem('enc') ?? 'auto';
+encSelect.addEventListener('change', () => { localStorage.setItem('enc', encSelect.value); reloadStored(); });
+
+function looksCp1251(ds: S57Dataset): boolean {
+  let high = 0, letters = 0;
+  for (const f of ds.features) {
+    for (const v of f.attributes.values()) {
+      for (let i = 0; i < v.length; i++) {
+        const c = v.charCodeAt(i);
+        if (c >= 0xc0 && c <= 0xff) high++;
+        else if ((c | 32) >= 97 && (c | 32) <= 122) letters++;
+      }
+    }
+  }
+  return high > 20 && high > 0.3 * (high + letters);
+}
+
+/**
+ * Why a cell cannot be read, or null if it looks like plain ISO 8211. An S-63
+ * cell is encrypted, so its first bytes are not an ISO 8211 leader ("...3L").
+ */
+function unreadableReason(set: ExchangeSet): string | null {
+  const b = new Uint8Array(set.base.buffer, 0, Math.min(24, set.base.buffer.byteLength));
+  const iso8211 = b.length >= 24 && b[6] === 0x4c && b[5] >= 0x31 && b[5] <= 0x33;
+  return iso8211 ? null : t(
+    'encrypted (S-63) or not an S-57 file: encrypted charts open only with a permit in a certified ECDIS',
+    'зашифрована (S-63) или это не S-57: защищённые карты открываются только по пермиту в сертифицированной ЭКНИС');
+}
+
+function buildLayer(set: ExchangeSet): { name: string; layer: S57Layer } {
+  const choice = encSelect.value;
+  const parse = (enc?: string) => {
+    let ds = parseS57(set.base.buffer, { textEncoding: enc });
+    for (const u of set.updates) ds = applyUpdate(ds, u.buffer);
+    return ds;
+  };
+  let dataset = parse(choice === 'auto' ? undefined : choice);
+  if (choice === 'auto' && looksCp1251(dataset)) dataset = parse('windows-1251');
   const geojson = toGeoJSON(dataset);
   const byRcid = new Map(dataset.features.map(f => [f.rcid, f.attributes]));
   for (const f of geojson.features) {
     const attrs = byRcid.get(f.properties.RCID as number);
     if (attrs) f.properties._attributes = attrs;
   }
-  const name = (set.base.name.split(/[\\/]/).pop() ?? set.base.name).replace(/\.000$/i, '');
-  return { name, layer: new S57Layer(geojson, { mode, opacity: 0.95 }) };
+  return { name: stemOf(set.base.name), layer: new S57Layer(geojson, { mode, opacity: 0.95 }) };
 }
 
-function showChart(files: ChartFile[], fit: boolean): string {
-  const { name, layer } = buildLayer(files);
+const stemOf = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.000$/i, '');
+
+function showChart(set: ExchangeSet, fit: boolean): string {
+  const { name, layer } = buildLayer(set);
   layers.get(name)?.remove();
   layers.set(name, layer);
   layer.addTo(map);
@@ -96,32 +143,66 @@ function fitTo(layer: S57Layer) {
   if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.05));
 }
 
-async function addCharts(files: ChartFile[], fit = true) {
-  try {
-    const name = showChart(files, fit);
-    await saveChart({ name, files, added: Date.now() });
-    setStatus(`${name} saved for offline use`);
-    renderChartList();
-  } catch (err) {
-    setStatus(`Could not load chart: ${(err as Error).message}`);
+/** Load every cell found in a set of files (one cell, a folder, a USB stick). */
+async function addCharts(files: ChartFile[]) {
+  const sets = groupExchangeSets(files);
+  if (!sets.length) {
+    const tx97 = files.some(f => /\.(tx97|tx9|txc)$/i.test(f.name));
+    setStatus(tx97
+      ? t('These are Transas (TX-97) charts, not S-57. They open only in Transas software.',
+          'Это карты Транзас (TX-97), а не S-57. Они открываются только в программах Транзас.')
+      : t('No S-57 cells (.000) found in the selected files.', 'В выбранных файлах нет карт S-57 (.000).'));
+    return;
   }
+  const ok: string[] = [];
+  const bad: string[] = [];
+  let last: string | null = null;
+  for (let i = 0; i < sets.length; i++) {
+    const set = sets[i];
+    const name = stemOf(set.base.name);
+    setStatus(`${t('Loading', 'Загрузка')} ${name} (${i + 1}/${sets.length})...`);
+    await new Promise(r => setTimeout(r, 0)); // let the status repaint
+    const reason = unreadableReason(set);
+    if (reason) { bad.push(`${name}: ${reason}`); continue; }
+    try {
+      last = showChart(set, false);
+      await saveChart({ name, files: [set.base, ...set.updates], added: Date.now() });
+      ok.push(name);
+    } catch (err) {
+      bad.push(`${name}: ${(err as Error).message}`);
+    }
+  }
+  if (last) fitTo(layers.get(last)!);
+  const saved = ok.length
+    ? `${t('Saved on this device', 'Сохранено на устройстве')}: ${ok.length} (${ok.slice(0, 5).join(', ')}${ok.length > 5 ? '…' : ''})`
+    : '';
+  setStatus([saved, ...bad.slice(0, 3)].filter(Boolean).join('. ') + (bad.length > 3 ? ` (+${bad.length - 3})` : ''));
+  renderChartList();
 }
 
-$<HTMLInputElement>('file').addEventListener('change', async (e) => {
-  const input = e.target as HTMLInputElement;
+async function readPicked(input: HTMLInputElement) {
   const files: ChartFile[] = [];
   for (const f of Array.from(input.files ?? [])) {
+    // A chart folder also holds pictures, PDFs and text notes: skip them.
+    if (!/\.(zip|\d{3}|tx97|tx9|txc)$/i.test(f.name)) continue;
     const buffer = await f.arrayBuffer();
+    const path = (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
     if (/\.zip$/i.test(f.name)) files.push(...unzipExchangeSet(buffer));
-    else files.push({ name: f.name, buffer });
+    else files.push({ name: path, buffer });
   }
   input.value = '';
   await addCharts(files);
-});
+}
+
+$<HTMLInputElement>('file').addEventListener('change', e => readPicked(e.target as HTMLInputElement));
+$<HTMLInputElement>('folder').addEventListener('change', e => readPicked(e.target as HTMLInputElement));
 
 $('noaa-go').addEventListener('click', async () => {
   const cell = $<HTMLInputElement>('noaa-cell').value.trim().toUpperCase();
-  if (!/^[A-Z0-9]{8}$/.test(cell)) { setStatus('Cell name is 8 characters, e.g. US5MA12M'); return; }
+  if (!/^[A-Z0-9]{8}$/.test(cell)) {
+    setStatus(t('Cell name is 8 characters, e.g. US5MA12M', 'Имя карты из 8 символов, например US5MA12M'));
+    return;
+  }
   try {
     const buf = await fetchEncZip(`https://charts.noaa.gov/ENCs/${cell}.zip`, setStatus);
     await addCharts(unzipExchangeSet(buf));
@@ -130,6 +211,15 @@ $('noaa-go').addEventListener('click', async () => {
   }
 });
 
+/** Re-parse every stored chart (after the text encoding setting changes). */
+async function reloadStored() {
+  for (const c of await allCharts()) {
+    const set = assembleExchangeSet(c.files);
+    if (!set) continue;
+    try { showChart(set, false); } catch (err) { console.warn(c.name, err); }
+  }
+}
+
 async function renderChartList() {
   const list = $('charts');
   list.innerHTML = '';
@@ -137,7 +227,7 @@ async function renderChartList() {
     const li = document.createElement('li');
     li.textContent = c.name + ' ';
     const del = document.createElement('button');
-    del.textContent = 'remove';
+    del.textContent = t('remove', 'удалить');
     del.onclick = async () => {
       await deleteChart(c.name);
       layers.get(c.name)?.remove();
@@ -180,7 +270,7 @@ function renderInstruments() {
   $('sog').textContent = fmt(nav.sog, 1, 'kn');
   $('cog').textContent = fmt(nav.cog, 0, '°');
   $('depth').textContent = fmt(nav.depth, 1, 'm');
-  $('src').textContent = nav.src || 'no position';
+  $('src').textContent = nav.src || t('no position', 'нет позиции');
 }
 
 function updatePosition(lat: number, lon: number, src: string) {
@@ -210,7 +300,7 @@ $('gps').addEventListener('click', () => {
     $('gps').classList.remove('on');
     return;
   }
-  if (!('geolocation' in navigator)) { setStatus('No GPS in this browser'); return; }
+  if (!('geolocation' in navigator)) { setStatus(t('No GPS in this browser', 'В этом браузере нет GPS')); return; }
   $('gps').classList.add('on');
   gpsWatch = navigator.geolocation.watchPosition(
     (p) => {
@@ -229,18 +319,18 @@ const RAD2DEG = 180 / Math.PI;
 const MS2KN = 3600 / 1852;
 
 $('sk-go').addEventListener('click', () => {
-  if (sk) { sk.close(); sk = null; $('sk-go').textContent = 'Connect'; return; }
+  if (sk) { sk.close(); sk = null; $('sk-go').textContent = t('Connect', 'Подключить'); return; }
   let host = $<HTMLInputElement>('sk-host').value.trim();
   if (!host) return;
   localStorage.setItem('sk-host', host);
   if (!/^wss?:\/\//.test(host)) host = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${host}`;
   const url = `${host.replace(/\/$/, '')}/signalk/v1/stream?subscribe=self`;
-  setStatus(`Connecting to ${url}...`);
+  setStatus(`${t('Connecting to', 'Подключение к')} ${url}...`);
   sk = new WebSocket(url);
-  $('sk-go').textContent = 'Disconnect';
-  sk.onopen = () => setStatus('Signal K connected');
-  sk.onclose = () => { setStatus('Signal K disconnected'); sk = null; $('sk-go').textContent = 'Connect'; };
-  sk.onerror = () => setStatus('Signal K error: check the address (an https page needs wss://)');
+  $('sk-go').textContent = t('Disconnect', 'Отключить');
+  sk.onopen = () => setStatus(t('Signal K connected', 'Signal K подключён'));
+  sk.onclose = () => { setStatus(t('Signal K disconnected', 'Signal K отключён')); sk = null; $('sk-go').textContent = t('Connect', 'Подключить'); };
+  sk.onerror = () => setStatus(t('Signal K error: check the address (an https page needs wss://)', 'Ошибка Signal K: проверьте адрес (с https-страницы нужен wss://)'));
   sk.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     for (const upd of msg.updates ?? []) {
@@ -261,14 +351,15 @@ $<HTMLInputElement>('sk-host').value = localStorage.getItem('sk-host') ?? '';
 (async () => {
   const stored = await allCharts();
   for (const c of stored) {
-    try { showChart(c.files, false); } catch (err) { console.warn(c.name, err); }
+    const set = assembleExchangeSet(c.files);
+    try { if (set) showChart(set, false); } catch (err) { console.warn(c.name, err); }
   }
   if (stored.length) {
-    setStatus(`${stored.length} chart(s) loaded from this device`);
+    setStatus(`${t('Charts loaded from this device', 'Карт загружено с устройства')}: ${stored.length}`);
     const first = layers.values().next().value as S57Layer | undefined;
     if (first) fitTo(first);
   } else {
-    setStatus('No charts yet: open your .000/.zip files or download a NOAA cell');
+    setStatus(t('No charts yet: open your .000/.zip files or a chart folder, or download a NOAA cell', 'Карт пока нет: откройте файлы .000/.zip или папку с картами (например, с флешки) либо скачайте карту NOAA'));
   }
   renderChartList();
   renderInstruments();
