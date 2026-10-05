@@ -33,6 +33,7 @@ jobs:
       - name: Build plotter bundle
         run: |
           bun install --frozen-lockfile
+          bun run build
           bun demo/build.ts
           bash apps/android-plotter/build-www.sh
 
