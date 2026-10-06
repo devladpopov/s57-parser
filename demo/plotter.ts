@@ -74,7 +74,9 @@ const allCharts = () => tx<StoredChart[]>('readonly', s => s.getAll());
 
 // Text encoding of 8-bit chart text. 'auto' switches to Windows-1251 when the
 // names in a cell look like Cyrillic stored as 8-bit bytes (some Russian river
-// and sea charts), otherwise ISO 8859-1 as the standard says.
+// and sea charts), to Windows-1250 when the text has bytes 0x80-0x9F, which
+// are control codes in ISO 8859-1 but Š, Ž and the like in Windows-1250
+// (Serbian and Croatian Danube charts), otherwise ISO 8859-1 as the standard says.
 const encSelect = $<HTMLSelectElement>('enc');
 encSelect.value = localStorage.getItem('enc') ?? 'auto';
 encSelect.addEventListener('change', () => { localStorage.setItem('enc', encSelect.value); reloadStored(); });
@@ -91,6 +93,11 @@ function looksCp1251(ds: S57Dataset): boolean {
     }
   }
   return high > 20 && high > 0.3 * (high + letters);
+}
+
+function hasC1Bytes(ds: S57Dataset): boolean {
+  for (const f of ds.features) for (const v of f.attributes.values()) if (/[-]/.test(v)) return true;
+  return false;
 }
 
 /**
@@ -113,7 +120,10 @@ function buildLayer(set: ExchangeSet): { name: string; layer: S57Layer } {
     return ds;
   };
   let dataset = parse(choice === 'auto' ? undefined : choice);
-  if (choice === 'auto' && looksCp1251(dataset)) dataset = parse('windows-1251');
+  if (choice === 'auto') {
+    if (looksCp1251(dataset)) dataset = parse('windows-1251');
+    else if (hasC1Bytes(dataset)) dataset = parse('windows-1250');
+  }
   const geojson = toGeoJSON(dataset);
   const byRcid = new Map(dataset.features.map(f => [f.rcid, f.attributes]));
   for (const f of geojson.features) {

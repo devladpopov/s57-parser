@@ -23,6 +23,12 @@ describe('national text', () => {
     expect(decode8bit(String.fromCharCode(...cp), 'windows-1251')).toBe('Нева');
   });
 
+  test('8-bit text in Windows-1250 (Serbian Danube charts)', () => {
+    // "Šimijan", "ĐERDAP" as written by the Serbian producer
+    expect(decode8bit('\x8aimijan', 'windows-1250')).toBe('Šimijan');
+    expect(decode8bit('\xd0ERDAP \x9a\x9e\xe8\xe6', 'windows-1250')).toBe('ĐERDAP šžčć');
+  });
+
   test('default stays ISO 8859-1', () => {
     expect(decode8bit('Bah\xeda', undefined)).toBe('Bahía');
     expect(decode8bit('Plain', 'windows-1251')).toBe('Plain');

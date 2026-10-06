@@ -8,8 +8,8 @@
  * contain the 0x1F/0x1E terminator bytes (e.g. Cyrillic П is 1F 04). So NATF
  * is decoded here from the raw field bytes.
  *
- * Some producers write 8-bit national text (e.g. Windows-1251 Cyrillic) at
- * level 1. `textEncoding` lets the caller reinterpret those bytes.
+ * Some producers write 8-bit national text (e.g. Windows-1251 Cyrillic,
+ * Windows-1250 Serbian/Croatian Latin on the Danube) at level 1. `textEncoding` lets the caller reinterpret those bytes.
  */
 
 import type { ISO8211Field } from '@s57-parser/iso8211';
@@ -34,14 +34,19 @@ function decoder(encoding: string): Decoder | null {
   return d;
 }
 
-// Windows-1251 upper half, built in: not every runtime's TextDecoder has it
-// (Bun does not), and it is the common 8-bit Cyrillic encoding in charts.
+// Upper halves of the common 8-bit chart encodings, built in: not every
+// runtime's TextDecoder has them (Bun does not). U+FFFD marks unused bytes.
 const CP1251_HIGH =
   'ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—�™љ›њќћџ ЎўЈ¤Ґ¦§Ё©Є«¬­®Ї°±Ііґµ¶·ё№є»јЅѕї' +
   'АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя';
+const CP1250_HIGH =
+  '€�‚�„…†‡�‰Š‹ŚŤŽŹ�‘’“”•–—�™š›śťžź ˇ˘Ł¤Ą¦§¨©Ş«¬­®Ż°±˛ł´µ¶·¸ąş»Ľ˝ľż' +
+  'ŔÁÂĂÄĹĆÇČÉĘËĚÍÎĎĐŃŇÓÔŐÖ×ŘŮÚŰÜÝŢßŕáâăäĺćçčéęëěíîďđńňóôőö÷řůúűüýţ˙';
 
-function isCp1251(encoding: string): boolean {
-  return /^(windows-1251|cp1251|x-cp1251)$/i.test(encoding);
+function builtinTable(encoding: string): string | null {
+  if (/^(windows-1251|cp1251|x-cp1251)$/i.test(encoding)) return CP1251_HIGH;
+  if (/^(windows-1250|cp1250|x-cp1250)$/i.test(encoding)) return CP1250_HIGH;
+  return null;
 }
 
 function isLatin1(encoding: string | undefined): boolean {
@@ -54,11 +59,12 @@ function isLatin1(encoding: string | undefined): boolean {
  */
 export function decode8bit(value: string, encoding: string | undefined): string {
   if (isLatin1(encoding) || !/[\x80-\xff]/.test(value)) return value;
-  if (isCp1251(encoding!)) {
+  const table = builtinTable(encoding!);
+  if (table) {
     let out = '';
     for (let i = 0; i < value.length; i++) {
       const c = value.charCodeAt(i) & 0xff;
-      out += c < 0x80 ? value[i] : CP1251_HIGH[c - 0x80];
+      out += c < 0x80 ? value[i] : table[c - 0x80];
     }
     return out;
   }
