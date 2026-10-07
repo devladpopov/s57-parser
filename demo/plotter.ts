@@ -25,6 +25,7 @@ import { fetchEncZip } from './enc-fetch.js';
 import { allSources, onSourcesChanged, registerSource, type ChartSource } from './sources.js';
 import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from './route.js';
 import { describeFeature, formatLatLon, isMeta, parseLatLon } from './feature-info.js';
+import { initLicense } from './license-ui.js';
 import { aheadOf, depthSettings, describeHazard, routeHazards, segmentHazards, worstHazard, type ChartFeature } from './depth.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -940,6 +941,9 @@ renderRoute();
   }
   renderTrackList();
 })();
+
+// Subscription state; features are not gated on it yet.
+initLicense(t);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('./plotter-sw.js').catch(err => console.warn('SW', err));
