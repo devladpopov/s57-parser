@@ -23,6 +23,14 @@ body{font:14px system-ui,sans-serif}
 #ctl{right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
 button,.pick span{font:inherit;padding:6px 10px;border:1px solid #888;border-radius:4px;background:#f4f4f4;cursor:pointer;display:inline-block}
 button.on{background:#0b3d5c;color:#fff;border-color:#0b3d5c}
+#rnav{left:8px;bottom:96px;display:flex;gap:12px;align-items:flex-end}
+#rnav[hidden]{display:none}
+#rnav div{text-align:center}
+#rnav b{display:block;font-size:18px}
+#rnav small{color:#666}
+.wp{background:#0060c0;color:#fff;border:2px solid #fff;border-radius:50%;font:bold 11px/18px system-ui;text-align:center;box-sizing:border-box}
+.wp.next{background:#e07000}
+#menu input[type=number]{width:52px}
 #status{margin-top:6px;color:#444;font-size:12px;max-width:290px}
 body[data-mode=NIGHT] .panel,body[data-mode=DUSK] .panel{background:#111;color:#c66}
 body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
@@ -41,6 +49,14 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
     <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
     <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
     <p><span data-ru="Кодировка текста">Text encoding</span> <select id="enc"><option value="auto">auto</option><option value="latin1">ISO 8859-1</option><option value="windows-1251">Windows-1251</option><option value="windows-1250">Windows-1250</option></select></p>
+    <div><span data-ru="Маршрут:">Route:</span> <span id="route-info"></span><br>
+      <button id="route-nav" data-ru="Вести">Go</button>
+      <button id="route-rev" data-ru="Обратно">Reverse</button>
+      <button id="route-clear" data-ru="Очистить">Clear</button><br>
+      <label class="pick"><input id="gpx-in" type="file" accept=".gpx"><span data-ru="Открыть GPX">Open GPX</span></label>
+      <button id="gpx-out" data-ru="Сохранить GPX">Save GPX</button><br>
+      <span data-ru="Скорость для расчёта, уз">Planning speed, kn</span> <input id="plan-speed" type="number" min="0.5" step="0.5">
+    </div>
     <div><span data-ru="Источники карт:">Chart sources:</span><div id="sources"></div></div>
     <div><span data-ru="Карты на устройстве:">Charts on this device:</span><ul id="charts"></ul></div>
     <p style="font-size:11px;color:#a00" data-ru="Не для навигации. Прототип.">Not for navigation. Prototype.</p>
@@ -50,6 +66,14 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
 <div id="ctl" class="panel">
   <button id="gps">GPS</button>
   <button id="follow" class="on" data-ru="Следить">Follow</button>
+  <button id="route-edit" data-ru="Маршрут">Route</button>
+</div>
+<div id="rnav" class="panel" hidden>
+  <div><small data-ru="Точка">To</small><b id="r-wp">–</b></div>
+  <div><small data-ru="Дист.">DTW</small><b id="r-dtw">–</b></div>
+  <div><small data-ru="Пеленг">BTW</small><b id="r-btw">–</b></div>
+  <div><small data-ru="Откл.">XTE</small><b id="r-xte">–</b></div>
+  <div><small data-ru="Прибытие">ETA</small><b id="r-eta">–</b></div>
 </div>
 <div id="inst" class="panel">
   <div><small data-ru="Скорость">SOG</small><b id="sog">–</b></div>

@@ -23,6 +23,7 @@ import type { DisplayMode } from '../packages/s52-render/src/colors.js';
 import { assembleExchangeSet, groupExchangeSets, unzipExchangeSet, type ChartFile, type ExchangeSet } from './exchange.js';
 import { fetchEncZip } from './enc-fetch.js';
 import { allSources, onSourcesChanged, registerSource, type ChartSource } from './sources.js';
+import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, type Waypoint } from './route.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const statusEl = $('status');
@@ -84,7 +85,7 @@ function renderSources() {
 
 renderSources();
 onSourcesChanged(renderSources);
-(window as unknown as { plotter: object }).plotter = { registerSource, map };
+(window as unknown as { plotter: object }).plotter = { registerSource, map, updatePosition };
 
 let mode: DisplayMode = 'DAY_BRIGHT';
 const layers = new Map<string, S57Layer>();
@@ -272,6 +273,7 @@ function inRing(ring: number[], lon: number, lat: number): boolean {
 }
 
 map.on('click', async (e: L.LeafletMouseEvent) => {
+  if (editingRoute) { addWaypoint(e.latlng); return; }
   coverage ??= fetch('./noaa-coverage.json').then(r => r.json()).then(j => j.cells as Coverage[]);
   let cells: Coverage[];
   try { cells = await coverage; } catch { coverage = null; return; }
@@ -384,6 +386,7 @@ function updatePosition(lat: number, lon: number, src: string) {
   nav.src = src;
   if (follow) map.panTo(ll, { animate: false });
   renderInstruments();
+  renderGuidance();
 }
 
 // Device GPS
@@ -440,6 +443,182 @@ $('sk-go').addEventListener('click', () => {
   };
 });
 $<HTMLInputElement>('sk-host').value = localStorage.getItem('sk-host') ?? '';
+
+// ─── Route and steering ─────────────────────────────────────────────────────
+//
+// "Route" button: taps on the map add waypoints, a waypoint can be dragged,
+// a tap on it removes it. "Go" steers to the next waypoint: distance, bearing,
+// cross-track error and arrival time (at the boat's speed, or the planning
+// speed before there is one). The route is kept in localStorage.
+
+let route: Waypoint[] = JSON.parse(localStorage.getItem('route') ?? '[]');
+let nextWp = Number(localStorage.getItem('route-next') ?? 0);
+let editingRoute = false;
+let steering = localStorage.getItem('route-nav') === '1';
+const routeLine = L.polyline([], { color: '#0060c0', weight: 3 });
+const steerLine = L.polyline([], { color: '#e07000', weight: 3, dashArray: '8 6', interactive: false });
+const wpMarkers = L.layerGroup().addTo(map);
+routeLine.addTo(map);
+const planSpeed = $<HTMLInputElement>('plan-speed');
+planSpeed.value = localStorage.getItem('plan-speed') ?? '5';
+planSpeed.addEventListener('change', () => { localStorage.setItem('plan-speed', planSpeed.value); renderGuidance(); });
+
+function saveRoute() {
+  localStorage.setItem('route', JSON.stringify(route));
+  localStorage.setItem('route-next', String(nextWp));
+  localStorage.setItem('route-nav', steering ? '1' : '0');
+}
+
+const boatPos = (): Waypoint | null => {
+  if (!map.hasLayer(boat)) return null;
+  const ll = boat.getLatLng();
+  return { lat: ll.lat, lon: ll.lng };
+};
+
+/** Speed for arrival times: the boat's own when it moves, else the planning speed. */
+const etaSpeed = () => (nav.sog > 0.5 ? nav.sog : Number(planSpeed.value));
+
+function fmtHours(h: number): string {
+  if (!Number.isFinite(h)) return '–';
+  const m = Math.round(h * 60);
+  return m < 60 ? `${m} ${t('min', 'мин')}` : `${Math.floor(m / 60)} ${t('h', 'ч')} ${m % 60} ${t('min', 'мин')}`;
+}
+
+const clockIn = (h: number) => Number.isFinite(h)
+  ? new Date(Date.now() + h * 3600e3).toLocaleTimeString(RU ? 'ru-RU' : undefined, { hour: '2-digit', minute: '2-digit' })
+  : '–';
+
+function renderRoute() {
+  routeLine.setLatLngs(route.map(w => [w.lat, w.lon]));
+  wpMarkers.clearLayers();
+  route.forEach((w, i) => {
+    const icon = L.divIcon({ className: `wp${steering && i === nextWp ? ' next' : ''}`, html: String(i + 1), iconSize: [22, 22] });
+    const m = L.marker([w.lat, w.lon], { icon, draggable: editingRoute, title: w.name ?? `WP${i + 1}` });
+    m.on('dragend', () => { const ll = m.getLatLng(); route[i] = { ...route[i], lat: ll.lat, lon: ll.lng }; changed(); });
+    m.on('click', () => {
+      if (editingRoute) { route.splice(i, 1); if (nextWp > i) nextWp--; }
+      else { nextWp = i; steering = true; }
+      changed();
+    });
+    wpMarkers.addLayer(m);
+  });
+  const len = routeLengthNm(route);
+  $('route-info').textContent = route.length
+    ? `${route.length} ${t('pts', 'тчк')}, ${len.toFixed(1)} ${t('nm', 'миль')}, ${fmtHours(hoursAt(len, Number(planSpeed.value)))}`
+    : t('none, press Route and tap the map', 'нет, нажмите «Маршрут» и ставьте точки на карте');
+  $('route-nav').classList.toggle('on', steering);
+  $('route-edit').classList.toggle('on', editingRoute);
+  renderGuidance();
+}
+
+function changed() {
+  nextWp = Math.max(0, Math.min(nextWp, route.length - 1));
+  if (route.length < 1) steering = false;
+  saveRoute();
+  renderRoute();
+}
+
+function addWaypoint(ll: L.LatLng) {
+  route.push({ lat: ll.lat, lon: L.Util.wrapNum(ll.lng, [-180, 180], true) });
+  changed();
+}
+
+function renderGuidance() {
+  const panel = $('rnav');
+  const p = boatPos();
+  panel.hidden = !steering || !route.length;
+  if (panel.hidden) { steerLine.remove(); return; }
+  if (!p) {
+    $('r-wp').textContent = String(nextWp + 1);
+    for (const id of ['r-dtw', 'r-btw', 'r-xte', 'r-eta']) $(id).textContent = '–';
+    steerLine.remove();
+    return;
+  }
+  const g = guide(route, nextWp, p);
+  if (g.next !== nextWp) { nextWp = g.next; saveRoute(); renderRoute(); return; }
+  if (g.arrived) {
+    steering = false;
+    saveRoute();
+    renderRoute();
+    setStatus(t('Route completed', 'Маршрут пройден'));
+    return;
+  }
+  const wp = route[g.next];
+  $('r-wp').textContent = wp.name ?? String(g.next + 1);
+  $('r-dtw').textContent = `${g.dtwNm < 1 ? g.dtwNm.toFixed(2) : g.dtwNm.toFixed(1)} ${t('nm', 'миль')}`;
+  $('r-btw').textContent = `${Math.round(g.btwDeg)}°`;
+  // Right of the track: steer left (L), left of it: steer right (R).
+  const side = g.xteNm > 0 ? t('L', 'Л') : t('R', 'П');
+  $('r-xte').textContent = Math.abs(g.xteNm) < 0.005 ? '0' : `${Math.abs(g.xteNm).toFixed(2)} ${side}`;
+  $('r-xte').title = t('steer to the shown side to get back on track', 'куда подвернуть, чтобы вернуться на линию');
+  const sp = etaSpeed();
+  $('r-eta').textContent = clockIn(hoursAt(g.remainingNm, sp));
+  $('r-eta').title = `${t('next point', 'до точки')} ${fmtHours(hoursAt(g.dtwNm, sp))}, ${t('to the end', 'до конца')} ${fmtHours(hoursAt(g.remainingNm, sp))}`;
+  steerLine.setLatLngs([[p.lat, p.lon], [wp.lat, wp.lon]]).addTo(map);
+}
+
+$('route-edit').addEventListener('click', () => {
+  editingRoute = !editingRoute;
+  if (editingRoute) {
+    menu.open = false;
+    cellOutline.remove();
+    setStatus(t('Tap the map to add points. Drag a point to move it, tap it to delete. Press Route again when done.',
+      'Нажимайте на карту, чтобы добавить точки. Точку можно перетащить, нажатие на точку удаляет её. Закончили: снова «Маршрут».'));
+  } else {
+    setStatus(route.length ? $('route-info').textContent! : '');
+  }
+  renderRoute();
+});
+
+$('route-nav').addEventListener('click', () => {
+  if (!route.length) { setStatus(t('Put the route points on the map first', 'Сначала поставьте точки маршрута на карте')); return; }
+  steering = !steering;
+  if (steering) {
+    const p = boatPos();
+    nextWp = p ? startIndex(route, p) : 0;
+    if (!p) {
+      setStatus(t('Steering starts when there is a position: press GPS', 'Ведение начнётся, когда будет позиция: нажмите GPS'));
+    }
+  }
+  saveRoute();
+  renderRoute();
+});
+
+$('route-rev').addEventListener('click', () => { route.reverse(); nextWp = 0; changed(); });
+
+$('route-clear').addEventListener('click', () => {
+  if (route.length && !confirm(t('Delete the route?', 'Удалить маршрут?'))) return;
+  route = [];
+  steering = false;
+  changed();
+});
+
+$('gpx-out').addEventListener('click', () => {
+  if (!route.length) return;
+  const url = URL.createObjectURL(new Blob([toGpx(route, t('Route', 'Маршрут'))], { type: 'application/gpx+xml' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `route-${new Date().toISOString().slice(0, 10)}.gpx`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+$<HTMLInputElement>('gpx-in').addEventListener('change', async (e) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  const pts = fromGpx(await file.text());
+  if (!pts.length) { setStatus(t('No route, track or waypoints in this GPX file', 'В этом GPX нет маршрута, трека или точек')); return; }
+  route = pts;
+  nextWp = 0;
+  steering = false;
+  changed();
+  map.fitBounds(L.latLngBounds(route.map(w => [w.lat, w.lon] as [number, number])).pad(0.1));
+  setStatus(`${t('Route loaded', 'Маршрут загружен')}: ${file.name}, ${$('route-info').textContent}`);
+});
+
+renderRoute();
 
 // ─── Startup ────────────────────────────────────────────────────────────────
 
