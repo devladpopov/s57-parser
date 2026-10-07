@@ -6,6 +6,9 @@
  * and are kept in IndexedDB, so after the first visit the page works with no
  * network (the service worker caches the app shell and visited OSM tiles).
  *
+ * Other chart data (OpenSeaMap seamarks, later licensed services) comes from
+ * chart sources, see sources.ts.
+ *
  * Position comes from the device GPS (Geolocation API) or from a Signal K
  * server on the boat (WebSocket delta stream), which also provides depth,
  * speed and course from the boat's instruments.
@@ -19,6 +22,7 @@ import type { S57Dataset } from '../packages/s57/src/types.js';
 import type { DisplayMode } from '../packages/s52-render/src/colors.js';
 import { assembleExchangeSet, groupExchangeSets, unzipExchangeSet, type ChartFile, type ExchangeSet } from './exchange.js';
 import { fetchEncZip } from './enc-fetch.js';
+import { allSources, onSourcesChanged, registerSource, type ChartSource } from './sources.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const statusEl = $('status');
@@ -40,6 +44,43 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: '&copy; OpenStreetMap contributors',
 }).addTo(map);
+
+// ─── Chart sources ──────────────────────────────────────────────────────────
+
+const sourceLayers = new Map<string, L.Layer>();
+
+function sourceOn(src: ChartSource): boolean {
+  const saved = localStorage.getItem(`src:${src.id}`);
+  return saved === null ? !!src.defaultOn : saved === '1';
+}
+
+function applySource(src: ChartSource, on: boolean) {
+  let layer = sourceLayers.get(src.id);
+  if (on && !layer) { layer = src.layer(); sourceLayers.set(src.id, layer); }
+  if (!layer) return;
+  if (on) layer.addTo(map); else layer.remove();
+}
+
+function renderSources() {
+  const list = $('sources');
+  list.innerHTML = '';
+  for (const src of allSources()) {
+    const label = document.createElement('label');
+    label.style.display = 'block';
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = sourceOn(src);
+    box.onchange = () => { localStorage.setItem(`src:${src.id}`, box.checked ? '1' : '0'); applySource(src, box.checked); };
+    label.append(box, ' ', t(src.title.en, src.title.ru));
+    if (src.note) label.title = t(src.note.en, src.note.ru);
+    list.appendChild(label);
+    applySource(src, box.checked);
+  }
+}
+
+renderSources();
+onSourcesChanged(renderSources);
+(window as unknown as { plotter: object }).plotter = { registerSource, map };
 
 let mode: DisplayMode = 'DAY_BRIGHT';
 const layers = new Map<string, S57Layer>();
@@ -96,7 +137,7 @@ function looksCp1251(ds: S57Dataset): boolean {
 }
 
 function hasC1Bytes(ds: S57Dataset): boolean {
-  for (const f of ds.features) for (const v of f.attributes.values()) if (/[-]/.test(v)) return true;
+  for (const f of ds.features) for (const v of f.attributes.values()) if (/[\x80-\x9f]/.test(v)) return true;
   return false;
 }
 

@@ -1,9 +1,10 @@
 // Service worker for the offline plotter: app shell is cached on install and
-// refreshed in the background; OSM tiles are cached as they are viewed so the
+// refreshed in the background; OSM and OpenSeaMap tiles are cached as they are viewed so the
 // areas you looked at stay visible offline. Charts live in IndexedDB.
-const SHELL = 'plotter-shell-v1';
+const SHELL = 'plotter-shell-v2';
 const TILES = 'plotter-tiles-v1';
 const MAX_TILES = 3000;
+const TILE_HOSTS = new Set(['tile.openstreetmap.org', 'tiles.openseamap.org']);
 const SHELL_URLS = [
   './plotter.html',
   './dist/plotter.js',
@@ -32,7 +33,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
 
-  if (url.hostname === 'tile.openstreetmap.org') {
+  if (TILE_HOSTS.has(url.hostname)) {
     e.respondWith(caches.open(TILES).then(async (cache) => {
       const hit = await cache.match(e.request);
       if (hit) return hit;
