@@ -29,6 +29,12 @@ describe('national text', () => {
     expect(decode8bit('\xd0ERDAP \x9a\x9e\xe8\xe6', 'windows-1250')).toBe('ĐERDAP šžčć');
   });
 
+  test('other encodings go through TextDecoder, unknown ones keep the bytes', () => {
+    expect(decode8bit('Caf\xc3\xa9', 'utf-8')).toBe('Café');
+    expect(decode8bit('Caf\xc3\xa9', 'utf-8')).toBe('Café'); // cached decoder
+    expect(decode8bit('Caf\xe9', 'no-such-encoding')).toBe('Caf\xe9');
+  });
+
   test('default stays ISO 8859-1', () => {
     expect(decode8bit('Bah\xeda', undefined)).toBe('Bahía');
     expect(decode8bit('Plain', 'windows-1251')).toBe('Plain');
