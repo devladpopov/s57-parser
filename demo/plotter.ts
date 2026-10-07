@@ -38,6 +38,10 @@ if (RU) {
 
 // ─── Map ────────────────────────────────────────────────────────────────────
 
+// The menu starts folded on phones so the chart gets the screen.
+const menu = $<HTMLDetailsElement>('menu-body');
+if (window.innerWidth < 700) menu.open = false;
+
 const map = L.map('map', { zoomControl: false }).setView([42.35, -71.0], 12);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -247,6 +251,46 @@ async function readPicked(input: HTMLInputElement) {
 
 $<HTMLInputElement>('file').addEventListener('change', e => readPicked(e.target as HTMLInputElement));
 $<HTMLInputElement>('folder').addEventListener('change', e => readPicked(e.target as HTMLInputElement));
+
+// Tap on the map: find the NOAA cells that cover the point (coverage polygons
+// from the NOAA product catalog, built by scripts/build-noaa-catalog.ts), put
+// the most detailed one into the download field and outline it.
+type Coverage = [id: string, band: number, rings: number[][]];
+let coverage: Promise<Coverage[]> | null = null;
+const BANDS = RU
+  ? ['', 'обзорная', 'генеральная', 'прибрежная', 'подходная', 'гавань', 'причальная']
+  : ['', 'overview', 'general', 'coastal', 'approach', 'harbour', 'berthing'];
+const cellOutline = L.polygon([], { color: '#c0f', weight: 2, fill: false, dashArray: '6 4', interactive: false });
+
+function inRing(ring: number[], lon: number, lat: number): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+    const [xi, yi, xj, yj] = [ring[i], ring[i + 1], ring[j], ring[j + 1]];
+    if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+map.on('click', async (e: L.LeafletMouseEvent) => {
+  coverage ??= fetch('./noaa-coverage.json').then(r => r.json()).then(j => j.cells as Coverage[]);
+  let cells: Coverage[];
+  try { cells = await coverage; } catch { coverage = null; return; }
+  const lon = L.Util.wrapNum(e.latlng.lng, [-180, 180], true);
+  const hits = cells.filter(([, , rings]) => rings.some(r => inRing(r, lon, e.latlng.lat)))
+    .sort((a, b) => b[1] - a[1]);
+  if (!hits.length) {
+    cellOutline.remove();
+    setStatus(t('No free NOAA charts here: NOAA covers US waters only.',
+      'Здесь нет бесплатных карт NOAA: они есть только для вод США. Карты России платные, их можно открыть из файлов.'));
+    return;
+  }
+  const [id, , rings] = hits[0];
+  $<HTMLInputElement>('noaa-cell').value = id;
+  cellOutline.setLatLngs(rings.map(r => { const ll: [number, number][] = []; for (let i = 0; i < r.length; i += 2) ll.push([r[i + 1], r[i]]); return ll; })).addTo(map);
+  const list = hits.slice(0, 4).map(([c, b]) => `${c} (${BANDS[b] ?? b})`).join(', ');
+  setStatus(`${t('NOAA charts here', 'Карты NOAA в этой точке')}: ${list}. ${t('Press Get to download', 'Нажмите «Скачать»')} ${id}.`);
+  menu.open = true;
+});
 
 $('noaa-go').addEventListener('click', async () => {
   const cell = $<HTMLInputElement>('noaa-cell').value.trim().toUpperCase();

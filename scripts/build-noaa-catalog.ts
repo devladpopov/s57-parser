@@ -3,7 +3,9 @@
  *
  * Fetches NOAA's public ENC Product Catalog XML and distils it into a compact
  * JSON array (id, title, scale, usage band, status, states, size, edition,
- * updated date, zip URL). The generated demo/catalog-index.json is committed so
+ * updated date, zip URL). It also writes demo/noaa-coverage.json, the coverage
+ * polygons of every cell, so the plotter can find the cells under a point on
+ * the map. The generated files are committed so
  * GitHub Pages needs no network at deploy time. Re-run to refresh:
  *
  *   bun scripts/build-noaa-catalog.ts
@@ -11,6 +13,21 @@
 
 const CATALOG_URL = 'https://www.charts.noaa.gov/ENCs/ENCProdCat.xml';
 const OUT = new URL('../demo/catalog-index.json', import.meta.url);
+const COVERAGE_OUT = new URL('../demo/noaa-coverage.json', import.meta.url);
+
+/** Coverage panels of a cell as flat [lon, lat, lon, lat, ...] rings (type E only). */
+function coverage(cell: string): number[][] {
+  const rings: number[][] = [];
+  for (const panel of cell.match(/<panel>[\s\S]*?<\/panel>/g) ?? []) {
+    if (tag(panel, 'type') !== 'E') continue;
+    const ring: number[] = [];
+    for (const v of panel.match(/<vertex>[\s\S]*?<\/vertex>/g) ?? []) {
+      ring.push(Math.round(Number(tag(v, 'long')) * 1e4) / 1e4, Math.round(Number(tag(v, 'lat')) * 1e4) / 1e4);
+    }
+    if (ring.length >= 6) rings.push(ring);
+  }
+  return rings;
+}
 
 interface CatalogEntry {
   id: string;
@@ -57,12 +74,15 @@ async function main() {
   process.stdout.write(`Parsed ${cells.length} cells\n`);
 
   const entries: CatalogEntry[] = [];
+  const covered: [string, number, number[][]][] = [];
   for (const cell of cells) {
     const status = tag(cell, 'status');
     if (status === 'Cancelled') continue; // not downloadable, drop to keep index lean
 
     const id = tag(cell, 'name');
     const band = Number(id[2]) || 0;
+    const rings = coverage(cell);
+    if (rings.length) covered.push([id, band, rings]);
     entries.push({
       id,
       title: tag(cell, 'lname'),
@@ -88,6 +108,9 @@ async function main() {
   };
 
   await Bun.write(OUT, JSON.stringify(index));
+  covered.sort((a, b) => a[0].localeCompare(b[0]));
+  await Bun.write(COVERAGE_OUT, JSON.stringify({ source: CATALOG_URL, generated: index.generated, cells: covered }));
+  process.stdout.write(`Wrote coverage of ${covered.length} cells to demo/noaa-coverage.json\n`);
   process.stdout.write(`Wrote ${entries.length} cells to demo/catalog-index.json\n`);
 }
 

@@ -10,7 +10,7 @@ html,body,#map{margin:0;height:100%}
 body{font:14px system-ui,sans-serif}
 .panel{position:absolute;z-index:1000;background:#fff;border-radius:6px;box-shadow:0 1px 6px #0004;padding:8px}
 #menu{left:8px;top:8px;max-width:310px;max-height:calc(100% - 140px);overflow:auto}
-#menu summary{cursor:pointer;font-weight:600}
+#menu summary{cursor:pointer;font-weight:600;padding:6px 4px;font-size:16px}
 #menu input[type=text]{width:120px}
 #menu ul{padding-left:16px;margin:4px 0}
 #menu p{margin:4px 0}
@@ -30,12 +30,13 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
 </head><body>
 <div id="map"></div>
 <div id="menu" class="panel">
-  <details open><summary data-ru="S-57 Картплоттер">S-57 Plotter</summary>
+  <details id="menu-body" open><summary data-ru="Меню">Menu</summary>
     <p>
       <label class="pick"><input id="file" type="file" multiple><span data-ru="Открыть файлы">Open files</span></label>
       <label class="pick"><input id="folder" type="file" webkitdirectory multiple><span data-ru="Открыть папку">Open folder</span></label>
     </p>
     <p style="font-size:11px;color:#666" data-ru="S-57: .000 с обновлениями .001… или .zip. Папка: например, ENC_ROOT с флешки, все карты сразу.">S-57: .000 with .001… updates, or .zip. Folder: e.g. ENC_ROOT from a USB stick, all cells at once.</p>
+    <p style="font-size:11px;color:#666" data-ru="Нажмите на карту, чтобы найти бесплатную карту NOAA для этого места (воды США).">Tap the map to find the free NOAA cell for that spot (US waters).</p>
     <p><span data-ru="Карта NOAA">NOAA cell</span> <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go" data-ru="Скачать">Get</button></p>
     <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
     <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
