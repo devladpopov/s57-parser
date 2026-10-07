@@ -23,7 +23,8 @@ import type { DisplayMode } from '../packages/s52-render/src/colors.js';
 import { assembleExchangeSet, groupExchangeSets, unzipExchangeSet, type ChartFile, type ExchangeSet } from './exchange.js';
 import { fetchEncZip } from './enc-fetch.js';
 import { allSources, onSourcesChanged, registerSource, type ChartSource } from './sources.js';
-import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, type Waypoint } from './route.js';
+import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from './route.js';
+import { describeFeature, formatLatLon, isMeta, parseLatLon } from './feature-info.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const statusEl = $('status');
@@ -93,20 +94,26 @@ const layers = new Map<string, S57Layer>();
 // ─── Chart storage (IndexedDB) ──────────────────────────────────────────────
 
 interface StoredChart { name: string; files: ChartFile[]; added: number }
+interface StoredTrack { id: number; points: TrackPoint[] }
 
+let dbOpen: Promise<IDBDatabase> | null = null;
 function db(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('s57-plotter', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('charts', { keyPath: 'name' });
+  return dbOpen ??= new Promise((resolve, reject) => {
+    const req = indexedDB.open('s57-plotter', 2);
+    req.onupgradeneeded = () => {
+      const names = req.result.objectStoreNames;
+      if (!names.contains('charts')) req.result.createObjectStore('charts', { keyPath: 'name' });
+      if (!names.contains('tracks')) req.result.createObjectStore('tracks', { keyPath: 'id' });
+    };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => { dbOpen = null; reject(req.error); };
   });
 }
 
-async function tx<T>(m: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+async function tx<T>(m: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>, store = 'charts'): Promise<T> {
   const d = await db();
   return new Promise((resolve, reject) => {
-    const req = fn(d.transaction('charts', m).objectStore('charts'));
+    const req = fn(d.transaction(store, m).objectStore(store));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -115,6 +122,9 @@ async function tx<T>(m: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBReques
 const saveChart = (c: StoredChart) => tx('readwrite', s => s.put(c));
 const deleteChart = (name: string) => tx('readwrite', s => s.delete(name));
 const allCharts = () => tx<StoredChart[]>('readonly', s => s.getAll());
+const saveTrack = (t: StoredTrack) => tx('readwrite', s => s.put(t), 'tracks');
+const deleteTrack = (id: number) => tx('readwrite', s => s.delete(id), 'tracks');
+const allTracks = () => tx<StoredTrack[]>('readonly', s => s.getAll(), 'tracks');
 
 // ─── Chart loading ──────────────────────────────────────────────────────────
 
@@ -274,6 +284,7 @@ function inRing(ring: number[], lon: number, lat: number): boolean {
 
 map.on('click', async (e: L.LeafletMouseEvent) => {
   if (editingRoute) { addWaypoint(e.latlng); return; }
+  if (showObjectInfo(e.latlng)) return;
   coverage ??= fetch('./noaa-coverage.json').then(r => r.json()).then(j => j.cells as Coverage[]);
   let cells: Coverage[];
   try { cells = await coverage; } catch { coverage = null; return; }
@@ -293,6 +304,118 @@ map.on('click', async (e: L.LeafletMouseEvent) => {
   setStatus(`${t('NOAA charts here', 'Карты NOAA в этой точке')}: ${list}. ${t('Press Get to download', 'Нажмите «Скачать»')} ${id}.`);
   menu.open = true;
 });
+
+// Tap on a chart object: what it is (buoy, light, wreck, depth area...) with
+// its attributes. Points within 16 px and lines within 8 px of the tap count,
+// then the areas that contain it; meta objects (coverage, data quality) and
+// soundings (their depths are not in the GeoJSON yet) are skipped.
+type Geo = { type: string; coordinates?: unknown; geometries?: Geo[] };
+const bboxes = new WeakMap<object, [number, number, number, number]>();
+
+function bboxOf(g: Geo): [number, number, number, number] {
+  let b = bboxes.get(g);
+  if (b) return b;
+  b = [Infinity, Infinity, -Infinity, -Infinity];
+  const walk = (c: unknown): void => {
+    if (typeof (c as number[])[0] === 'number') {
+      const [x, y] = c as number[];
+      if (x < b![0]) b![0] = x; if (y < b![1]) b![1] = y; if (x > b![2]) b![2] = x; if (y > b![3]) b![3] = y;
+    } else for (const k of c as unknown[]) walk(k);
+  };
+  if (g.coordinates) walk(g.coordinates);
+  for (const s of g.geometries ?? []) { const sb = bboxOf(s); walk([[sb[0], sb[1]], [sb[2], sb[3]]]); }
+  bboxes.set(g, b);
+  return b;
+}
+
+function segDistPx(p: L.Point, a: L.Point, b: L.Point): number {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  const k = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+  return Math.hypot(p.x - a.x - k * dx, p.y - a.y - k * dy);
+}
+
+function inPolygon(rings: number[][][], lon: number, lat: number): boolean {
+  let inside = false;
+  for (const r of rings) {
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j];
+      if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Distance in px from the tap to a geometry (0 inside an area), or Infinity. Rank: 0 point, 1 line, 2 area. */
+function hitGeometry(g: Geo, tap: L.Point, lon: number, lat: number): [dist: number, rank: number] {
+  const px = (c: number[]) => map.latLngToContainerPoint([c[1], c[0]]);
+  switch (g.type) {
+    case 'Point': return [px(g.coordinates as number[]).distanceTo(tap), 0];
+    case 'MultiPoint': return [Math.min(...(g.coordinates as number[][]).map(c => px(c).distanceTo(tap))), 0];
+    case 'LineString': {
+      const pts = (g.coordinates as number[][]).map(px);
+      let d = Infinity;
+      for (let i = 1; i < pts.length; i++) d = Math.min(d, segDistPx(tap, pts[i - 1], pts[i]));
+      return [d, 1];
+    }
+    case 'Polygon': return [inPolygon(g.coordinates as number[][][], lon, lat) ? 0 : Infinity, 2];
+    case 'GeometryCollection': {
+      let best: [number, number] = [Infinity, 3];
+      for (const s of g.geometries ?? []) { const h = hitGeometry(s, tap, lon, lat); if (h[0] < best[0] || (h[0] === best[0] && h[1] < best[1])) best = h; }
+      return best;
+    }
+  }
+  return [Infinity, 3];
+}
+
+function chartObjectsAt(ll: L.LatLng): Record<string, unknown>[] {
+  const tap = map.latLngToContainerPoint(ll);
+  const degPerPx = (map.getBounds().getNorth() - map.getBounds().getSouth()) / map.getSize().y;
+  const tolLat = 16 * degPerPx, tolLon = tolLat / Math.cos(ll.lat * Math.PI / 180);
+  const lon = L.Util.wrapNum(ll.lng, [-180, 180], true);
+  const hits: { props: Record<string, unknown>; dist: number; rank: number }[] = [];
+  for (const layer of layers.values()) {
+    for (const f of layer.geojson?.features ?? []) {
+      const props = f.properties as Record<string, unknown>;
+      const objl = Number(props.OBJL);
+      if (!f.geometry || isMeta(objl) || objl === 129) continue;
+      const b = bboxOf(f.geometry as Geo);
+      if (lon < b[0] - tolLon || lon > b[2] + tolLon || ll.lat < b[1] - tolLat || ll.lat > b[3] + tolLat) continue;
+      const [dist, rank] = hitGeometry(f.geometry as Geo, tap, lon, ll.lat);
+      if (dist <= (rank === 0 ? 16 : rank === 1 ? 8 : 0)) hits.push({ props, dist, rank });
+    }
+  }
+  hits.sort((a, b) => a.rank - b.rank || a.dist - b.dist);
+  return hits.map(h => h.props);
+}
+
+const escHtml = (s: string) => s.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]!);
+
+function showObjectInfo(ll: L.LatLng): boolean {
+  const objects = chartObjectsAt(ll);
+  if (!objects.length) return false;
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const props of objects) {
+    const info = describeFeature(props, RU);
+    const html = `<b>${escHtml(info.title)}</b>` + (info.rows.length
+      ? `<table>${info.rows.map(([k, v]) => `<tr><td style="color:#666;padding-right:6px">${escHtml(k)}</td><td>${escHtml(v)}</td></tr>`).join('')}</table>`
+      : '');
+    if (seen.has(html)) continue; // the same area split into several features
+    seen.add(html);
+    parts.push(html);
+    if (parts.length >= 6) break;
+  }
+  const div = document.createElement('div');
+  div.innerHTML = parts.join('<hr style="margin:4px 0">') +
+    `<p style="margin:6px 0 4px;color:#666">${formatLatLon(ll.lat, ll.lng, RU)}</p>`;
+  const add = document.createElement('button');
+  add.textContent = t('Add to route', 'В маршрут');
+  add.onclick = () => { addWaypoint(ll); map.closePopup(); };
+  div.appendChild(add);
+  L.popup({ maxWidth: 280, maxHeight: Math.round(window.innerHeight * 0.45), autoPanPaddingTopLeft: [10, 90], autoPanPaddingBottomRight: [10, 110] }).setLatLng(ll).setContent(div).openOn(map);
+  return true;
+}
 
 $('noaa-go').addEventListener('click', async () => {
   const cell = $<HTMLInputElement>('noaa-cell').value.trim().toUpperCase();
@@ -374,7 +497,7 @@ function updatePosition(lat: number, lon: number, src: string) {
   const ll = L.latLng(lat, lon);
   if (!map.hasLayer(boat)) { boat.addTo(map); heading.addTo(map); track.addTo(map); map.setView(ll, 14); }
   boat.setLatLng(ll);
-  if (!lastTrackPoint || lastTrackPoint.distanceTo(ll) > 10) { track.addLatLng(ll); lastTrackPoint = ll; }
+  if (!lastTrackPoint || lastTrackPoint.distanceTo(ll) > 10) { track.addLatLng(ll); lastTrackPoint = ll; recordTrack(lat, lon); }
   if (Number.isFinite(nav.cog)) {
     // Course line: where the boat will be in 6 minutes at the current speed.
     const dist = (Number.isFinite(nav.sog) ? nav.sog : 0) * 1852 / 10;
@@ -388,6 +511,101 @@ function updatePosition(lat: number, lon: number, src: string) {
   renderInstruments();
   renderGuidance();
 }
+
+// Tracks: every position 10 m from the last one goes into the current track,
+// saved to IndexedDB every 15 s and when the app goes to the background. A
+// gap of 6 hours or the "New track" button starts a new one.
+const TRACK_GAP_MS = 6 * 3600e3;
+let curTrack: StoredTrack | null = null;
+let trackSave: ReturnType<typeof setTimeout> | null = null;
+const shownTracks = new Map<number, L.Polyline>();
+
+function recordTrack(lat: number, lon: number) {
+  const now = Date.now();
+  const last = curTrack?.points.at(-1);
+  if (!curTrack || (last && now - last[2] > TRACK_GAP_MS)) {
+    curTrack = { id: now, points: [] };
+    track.setLatLngs([[lat, lon]]);
+  }
+  curTrack.points.push([lat, lon, now]);
+  trackSave ??= setTimeout(flushTrack, 15000);
+}
+
+async function flushTrack() {
+  if (trackSave) clearTimeout(trackSave);
+  trackSave = null;
+  if (curTrack?.points.length) { await saveTrack(curTrack); renderTrackList(); }
+}
+
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushTrack(); });
+
+const trackTitle = (tr: StoredTrack) => {
+  const d = new Date(tr.id);
+  const when = d.toLocaleDateString(RU ? 'ru-RU' : undefined, { day: '2-digit', month: '2-digit' }) + ' ' +
+    d.toLocaleTimeString(RU ? 'ru-RU' : undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${when}, ${trackLengthNm(tr.points).toFixed(1)} ${t('nm', 'миль')}`;
+};
+
+let trackListGen = 0;
+async function renderTrackList() {
+  const gen = ++trackListGen;
+  const tracks = (await allTracks()).sort((a, b) => b.id - a.id).slice(0, 20);
+  if (gen !== trackListGen) return; // a newer render is on its way
+  const list = $('tracks');
+  list.innerHTML = '';
+  for (const tr of tracks) {
+    const li = document.createElement('li');
+    li.textContent = trackTitle(tr) + (tr.id === curTrack?.id ? ` (${t('recording', 'пишется')}) ` : ' ');
+    const show = document.createElement('button');
+    show.textContent = shownTracks.has(tr.id) ? t('hide', 'скрыть') : t('show', 'показать');
+    show.onclick = () => {
+      const line = shownTracks.get(tr.id);
+      if (line) { line.remove(); shownTracks.delete(tr.id); }
+      else {
+        const pl = L.polyline(tr.points.map(([la, lo]) => [la, lo] as [number, number]), { color: '#8a2be2', weight: 3, opacity: 0.8 }).addTo(map);
+        shownTracks.set(tr.id, pl);
+        if (tr.points.length) map.fitBounds(pl.getBounds().pad(0.1));
+      }
+      renderTrackList();
+    };
+    const gpx = document.createElement('button');
+    gpx.textContent = 'GPX';
+    gpx.onclick = () => download(trackToGpx(tr.points, trackTitle(tr)), `track-${new Date(tr.id).toISOString().slice(0, 16).replace(/[T:]/g, '-')}.gpx`);
+    const del = document.createElement('button');
+    del.textContent = t('remove', 'удалить');
+    del.onclick = async () => {
+      if (!confirm(t('Delete this track?', 'Удалить этот трек?'))) return;
+      await deleteTrack(tr.id);
+      shownTracks.get(tr.id)?.remove();
+      shownTracks.delete(tr.id);
+      if (tr.id === curTrack?.id) { curTrack = null; track.setLatLngs([]); lastTrackPoint = null; }
+      renderTrackList();
+    };
+    li.append(show, ' ', gpx, ' ', del);
+    list.appendChild(li);
+  }
+  if (!tracks.length) list.textContent = t('none yet: turn on GPS', 'пока нет: включите GPS');
+}
+
+function download(text: string, name: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'application/gpx+xml' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$('track-new').addEventListener('click', async () => {
+  const done = curTrack;
+  curTrack = null;
+  lastTrackPoint = null;
+  track.setLatLngs([]);
+  if (trackSave) { clearTimeout(trackSave); trackSave = null; }
+  if (done?.points.length) await saveTrack(done);
+  renderTrackList();
+  setStatus(t('A new track starts with the next position', 'Новый трек начнётся со следующей позиции'));
+});
 
 // Device GPS
 let gpsWatch: number | null = null;
@@ -594,13 +812,22 @@ $('route-clear').addEventListener('click', () => {
 });
 
 $('gpx-out').addEventListener('click', () => {
-  if (!route.length) return;
-  const url = URL.createObjectURL(new Blob([toGpx(route, t('Route', 'Маршрут'))], { type: 'application/gpx+xml' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `route-${new Date().toISOString().slice(0, 10)}.gpx`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (route.length) download(toGpx(route, t('Route', 'Маршрут')), `route-${new Date().toISOString().slice(0, 10)}.gpx`);
+});
+
+// A waypoint typed as coordinates (from a pilot book, a friend, a forum).
+$('wp-add').addEventListener('click', () => {
+  const input = $<HTMLInputElement>('wp-coord');
+  const p = parseLatLon(input.value);
+  if (!p) {
+    setStatus(t('Could not read the position. Examples: 59 56.316 N 30 18.846 E, 59.9386 30.3141',
+      'Не удалось прочитать координаты. Примеры: 59 56.316 С 30 18.846 В или 59.9386 30.3141'));
+    return;
+  }
+  input.value = '';
+  addWaypoint(L.latLng(p.lat, p.lon));
+  map.panTo([p.lat, p.lon]);
+  setStatus(`${t('Point added', 'Точка добавлена')}: ${formatLatLon(p.lat, p.lon, RU)}`);
 });
 
 $<HTMLInputElement>('gpx-in').addEventListener('change', async (e) => {
@@ -637,6 +864,14 @@ renderRoute();
   }
   renderChartList();
   renderInstruments();
+  // Keep writing the last track if it was interrupted recently (app restart).
+  const recent = (await allTracks()).sort((a, b) => b.id - a.id)[0];
+  const last = recent?.points.at(-1);
+  if (last && Date.now() - last[2] < TRACK_GAP_MS) {
+    curTrack = recent;
+    track.setLatLngs(recent.points.map(([la, lo]) => [la, lo] as [number, number])).addTo(map);
+  }
+  renderTrackList();
 })();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

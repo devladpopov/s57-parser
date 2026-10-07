@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { alongTrackNm, bearingDeg, crossTrackNm, distanceNm, fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, type Waypoint } from '../route.js';
+import { alongTrackNm, bearingDeg, crossTrackNm, distanceNm, fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from '../route.js';
 
 // One minute of latitude is one nautical mile (to ~0.5% on a sphere).
 const at = (lat: number, lon: number): Waypoint => ({ lat, lon });
@@ -84,5 +84,16 @@ describe('startIndex', () => {
     expect(startIndex(route, at(0.3, 0.01))).toBe(1); // on leg 1, nearest is behind
     expect(startIndex(route, at(0.9, 0))).toBe(1); // nearest is ahead
     expect(startIndex(route, at(1.1, 1.2))).toBe(2); // beyond the end
+  });
+});
+
+describe('tracks', () => {
+  test('GPX with times, read back as points', () => {
+    const pts: TrackPoint[] = [[60, 30, Date.UTC(2026, 9, 7, 12)], [60.01, 30, Date.UTC(2026, 9, 7, 12, 6)]];
+    const gpx = trackToGpx(pts, 'Утро');
+    expect(gpx).toContain('<time>2026-10-07T12:06:00.000Z</time>');
+    expect(gpx).toContain('<trk><name>Утро</name>');
+    expect(fromGpx(gpx)).toEqual([at(60, 30), at(60.01, 30)]);
+    expect(trackLengthNm(pts)).toBeCloseTo(0.6, 1);
   });
 });

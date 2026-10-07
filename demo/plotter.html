@@ -44,7 +44,7 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
       <label class="pick"><input id="folder" type="file" webkitdirectory multiple><span data-ru="Открыть папку">Open folder</span></label>
     </p>
     <p style="font-size:11px;color:#666" data-ru="S-57: .000 с обновлениями .001… или .zip. Папка: например, ENC_ROOT с флешки, все карты сразу.">S-57: .000 with .001… updates, or .zip. Folder: e.g. ENC_ROOT from a USB stick, all cells at once.</p>
-    <p style="font-size:11px;color:#666" data-ru="Нажмите на карту, чтобы найти бесплатную карту NOAA для этого места (воды США).">Tap the map to find the free NOAA cell for that spot (US waters).</p>
+    <p style="font-size:11px;color:#666" data-ru="Нажмите на объект карты, чтобы узнать, что это. Нажатие вне карт ищет бесплатную карту NOAA (воды США).">Tap a chart object to see what it is; tap elsewhere to find the free NOAA cell for that spot (US waters).</p>
     <p><span data-ru="Карта NOAA">NOAA cell</span> <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go" data-ru="Скачать">Get</button></p>
     <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
     <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
@@ -55,8 +55,10 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
       <button id="route-clear" data-ru="Очистить">Clear</button><br>
       <label class="pick"><input id="gpx-in" type="file" accept=".gpx"><span data-ru="Открыть GPX">Open GPX</span></label>
       <button id="gpx-out" data-ru="Сохранить GPX">Save GPX</button><br>
-      <span data-ru="Скорость для расчёта, уз">Planning speed, kn</span> <input id="plan-speed" type="number" min="0.5" step="0.5">
+      <span data-ru="Скорость для расчёта, уз">Planning speed, kn</span> <input id="plan-speed" type="number" min="0.5" step="0.5"><br>
+      <input id="wp-coord" type="text" style="width:170px" placeholder="59 56.316 N 30 18.846 E"> <button id="wp-add" data-ru="Точка">Point</button>
     </div>
+    <div><span data-ru="Треки:">Tracks:</span> <button id="track-new" data-ru="Новый трек">New track</button><ul id="tracks"></ul></div>
     <div><span data-ru="Источники карт:">Chart sources:</span><div id="sources"></div></div>
     <div><span data-ru="Карты на устройстве:">Charts on this device:</span><ul id="charts"></ul></div>
     <p style="font-size:11px;color:#a00" data-ru="Не для навигации. Прототип.">Not for navigation. Prototype.</p>

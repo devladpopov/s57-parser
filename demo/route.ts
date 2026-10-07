@@ -152,3 +152,24 @@ export function fromGpx(xml: string): Waypoint[] {
   }
   return [];
 }
+
+/** Track point: latitude, longitude, time (ms since epoch). */
+export type TrackPoint = [lat: number, lon: number, time: number];
+
+/** A GPX 1.1 document with one track. */
+export function trackToGpx(points: TrackPoint[], name = 'Track'): string {
+  const pts = points.map(([lat, lon, time]) =>
+    `      <trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"><time>${new Date(time).toISOString()}</time></trkpt>`);
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="s57-parser plotter" xmlns="http://www.topografix.com/GPX/1/1">',
+    `  <trk><name>${esc(name)}</name><trkseg>`,
+    ...pts,
+    '  </trkseg></trk>',
+    '</gpx>',
+    '',
+  ].join('\n');
+}
+
+/** Length of a track, nautical miles. */
+export const trackLengthNm = (points: TrackPoint[]) => routeLengthNm(points.map(([lat, lon]) => ({ lat, lon })));
