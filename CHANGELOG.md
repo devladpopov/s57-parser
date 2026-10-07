@@ -19,8 +19,17 @@ one version.
 - README for every package (the npm pages had none), LICENSE in every tarball.
 - `exports["./package.json"]` and `default` export condition in every package.
 - `engines.node >= 18`, `sideEffects: false`.
+- `s52-render`: mariner depth settings (`DepthSettings`: shallow, safety and
+  deep contours, two-shade mode) in `RenderOptions.depths`, `lookupInstruction`
+  and `depareColor`; the safety contour is drawn bold (`effectiveSafetyContour`,
+  S-52 DEPCNT02); dredged areas (DRGARE) are shaded like depth areas.
+  `@s57-parser/leaflet`: `depths` option and `S57Layer.setDepths()`.
 
 ### Changed
+- `s52-render`: depth areas are shaded by their least depth (DRVAL1) against
+  the mariner contours (S-52 SEABED01) instead of by DRVAL2 against fixed 5, 10
+  and 20 m; the defaults are still 5, 10 and 20 m. Day depth shades have more
+  contrast so unsafe water stands out.
 - `iso8211`: `parse()` throws a descriptive `Error` on input that is not
   ISO 8211 (truncated leader, impossible record length or base address, empty
   entry map) instead of returning records full of `NaN`. A record length of

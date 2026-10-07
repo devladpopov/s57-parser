@@ -7,7 +7,7 @@
 
 import L from 'leaflet';
 import type { GeoJSONFeatureCollection } from '@s57-parser/s57';
-import type { DisplayMode } from '@s57-parser/s52-render';
+import type { DepthSettings, DisplayMode } from '@s57-parser/s52-render';
 import { renderChart } from '@s57-parser/s52-render';
 import { loadFile } from './loader.js';
 
@@ -20,6 +20,8 @@ export interface S57LayerOptions {
   zIndex?: number;
   /** Whether to show text labels (default: true) */
   showLabels?: boolean;
+  /** Mariner's shallow, safety and deep contours, metres */
+  depths?: DepthSettings;
 }
 
 /**
@@ -79,6 +81,12 @@ export class S57Layer extends L.Layer {
   /** Update the display mode and re-render */
   setMode(mode: DisplayMode): void {
     this._options.mode = mode;
+    this._render();
+  }
+
+  /** Set the mariner's depth contours (safety contour, shades) and re-render */
+  setDepths(depths: DepthSettings): void {
+    this._options.depths = depths;
     this._render();
   }
 
@@ -192,6 +200,7 @@ export class S57Layer extends L.Layer {
       mode: this._options.mode,
       showLabels: this._options.showLabels,
       background: false,
+      depths: this._options.depths,
     });
   }
 }

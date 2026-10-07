@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { resolveColor, rgbToCSS } from '../src/colors.js';
-import { lookupInstruction, depareColor, lightColorToken, formatDepth, formatLightChar, OBJL, ATTL } from '../src/lookup.js';
+import { lookupInstruction, depareColor, effectiveSafetyContour, lightColorToken, formatDepth, formatLightChar, OBJL, ATTL } from '../src/lookup.js';
 
 describe('S-52 color palette', () => {
   it('should resolve known color tokens for DAY_BRIGHT', () => {
@@ -81,6 +81,33 @@ describe('DEPARE depth-dependent coloring', () => {
 
   it('should return DEPDW for deep water (20m+)', () => {
     expect(depareColor(20, 100)).toBe('DEPDW');
+  });
+
+  it('shades by the least depth against the mariner contours (SEABED01)', () => {
+    const d = { shallowContour: 2, safetyContour: 3, deepContour: 10 };
+    expect(depareColor(0, 10, d)).toBe('DEPVS');  // may be 0 m somewhere: unsafe
+    expect(depareColor(2, 3, d)).toBe('DEPMS');
+    expect(depareColor(3, 5, d)).toBe('DEPMD');
+    expect(depareColor(10, 20, d)).toBe('DEPDW');
+    expect(depareColor(-1, 2, d)).toBe('DEPIT');
+    expect(depareColor(2, 5, { ...d, twoShades: true })).toBe('DEPVS');
+    expect(depareColor(3, 5, { ...d, twoShades: true })).toBe('DEPDW');
+  });
+
+  it('dredged areas use the same shading; a missing DRVAL2 means at least DRVAL1', () => {
+    const attrs = new Map([[ATTL.DRVAL1, '12']]);
+    expect(lookupInstruction(OBJL.DRGARE, attrs).fill).toBe('DEPMD');
+    expect(lookupInstruction(OBJL.DEPARE, new Map()).fill).toBe('DEPVS'); // unknown depth: unsafe
+  });
+
+  it('picks the safety contour and draws it bold', () => {
+    expect(effectiveSafetyContour([2, 5, 10], 3)).toBe(5);
+    expect(effectiveSafetyContour([10, 5, 2], 5)).toBe(5);
+    expect(effectiveSafetyContour([2, 5], 6)).toBeUndefined();
+    const at5 = new Map([[ATTL.VALDCO, '5']]);
+    expect(lookupInstruction(OBJL.DEPCNT, at5, undefined, 5).strokeWidth).toBe(2);
+    expect(lookupInstruction(OBJL.DEPCNT, new Map([[ATTL.VALDCO, '10']]), undefined, 5).strokeWidth).toBe(0.5);
+    expect(lookupInstruction(OBJL.DEPCNT, at5).strokeWidth).toBe(0.5);
   });
 
   it('should apply conditional coloring with attributes', () => {

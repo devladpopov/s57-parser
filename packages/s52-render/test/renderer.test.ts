@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { renderChart, drawLegendSymbol, type ViewTransform } from '../src/renderer.js';
-import { LOOKUP_TABLE, OBJL } from '../src/lookup.js';
+import { LOOKUP_TABLE, OBJL, type DepthSettings } from '../src/lookup.js';
 import { resolveColor, rgbToCSS } from '../src/colors.js';
 import { parseS57, toGeoJSON, type GeoJSONFeatureCollection } from '@s57-parser/s57';
 import { recordingContext } from '../../../test-utils/canvas-mock.js';
@@ -57,6 +57,22 @@ describe('renderChart — US5MA12M', () => {
     const rec = recordingContext();
     renderChart(rec.ctx, chart, view, W, H, { showLabels: false });
     expect(rec.count('fillText')).toBe(0);
+  });
+
+  it('shades depth areas and draws the safety contour by the depth settings', () => {
+    const fills = (depths?: DepthSettings) => {
+      const rec = recordingContext();
+      renderChart(rec.ctx, chart, view, W, H, { depths, showLabels: false });
+      return rec.sets;
+    };
+    const vs = rgbToCSS(resolveColor('DEPVS', 'DAY_BRIGHT'));
+    const count = (sets: { name: string; value: unknown }[], v: unknown) => sets.filter(x => x.value === v).length;
+    const shallow = fills({ shallowContour: 1, safetyContour: 2, deepContour: 10 });
+    const deep = fills({ shallowContour: 10, safetyContour: 20, deepContour: 30 });
+    expect(count(deep, vs)).toBeGreaterThan(count(shallow, vs));
+    // US5MA12M has contours in feet converted to metres; the safety contour is bold.
+    const bold = (sets: { name: string; value: unknown }[]) => sets.filter(x => x.name === 'lineWidth' && x.value === 2).length;
+    expect(bold(deep)).toBeGreaterThan(bold(fills({ shallowContour: 1, safetyContour: 500, deepContour: 600 })));
   });
 
   it('culls everything when the view is far from the chart', () => {

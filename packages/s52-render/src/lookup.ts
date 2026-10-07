@@ -86,6 +86,7 @@ export const OBJL = {
   CONZNE: 31,   // Contiguous zone
   DEPARE: 42,   // Depth area
   DEPCNT: 43,   // Depth contour
+  DRGARE: 46,   // Dredged area
   DMPGRD: 48,   // Dumping ground
   DWRTCL: 40,   // Deep water route centerline
   FAIRWY: 51,   // Fairway
@@ -167,6 +168,7 @@ export const OBJL_NAMES: Record<number, string> = Object.fromEntries(
     ['CONZNE', 'Contiguous zone'],
     ['DEPARE', 'Depth area'],
     ['DEPCNT', 'Depth contour'],
+    ['DRGARE', 'Dredged area'],
     ['DMPGRD', 'Dumping ground'],
     ['DWRTCL', 'Deep water route centerline'],
     ['FAIRWY', 'Fairway'],
@@ -237,6 +239,11 @@ export const LOOKUP_TABLE: Map<number, RenderInstruction> = new Map([
     type: 'area', fill: 'DEPMD', fillAlpha: 1.0,
     stroke: 'DEPSC', strokeWidth: 0.3, priority: 1,
     description: 'Depth area',
+  }],
+  [OBJL.DRGARE, {
+    type: 'area', fill: 'DEPMD', fillAlpha: 1.0,
+    stroke: 'CHGRD', strokeWidth: 0.5, dashPattern: [4, 3], priority: 1,
+    description: 'Dredged area',
   }],
 
   // ─── Land ────────────────────────────────────────────
@@ -525,35 +532,80 @@ export function formatLightChar(attrs: Map<number, string>): string {
 }
 
 /**
- * Get the depth-dependent fill color for a DEPARE feature.
- * Uses DRVAL1 (minimum depth) and DRVAL2 (maximum depth) attributes.
+ * Mariner's depth settings, metres (S-52 mariner parameters). Water shallower
+ * than the safety contour is unsafe for the boat and gets the darker shallow
+ * shades; the depth contour equal to it (or the next deeper one on the chart)
+ * is drawn as the bold safety contour.
  */
-export function depareColor(drval1: number, drval2: number): string {
-  if (drval1 < 0) return 'DEPIT';        // Intertidal (dries)
-  if (drval2 <= 5) return 'DEPVS';       // Very shallow (0-5m)
-  if (drval2 <= 10) return 'DEPMS';      // Medium shallow (5-10m)
-  if (drval2 <= 20) return 'DEPMD';      // Medium (10-20m)
-  return 'DEPDW';                          // Deep (20m+)
+export interface DepthSettings {
+  shallowContour: number;
+  safetyContour: number;
+  deepContour: number;
+  /** Two shades only: unsafe and safe water (S-52 TWO_SHADES). */
+  twoShades?: boolean;
+}
+
+export const DEFAULT_DEPTHS: DepthSettings = { shallowContour: 5, safetyContour: 10, deepContour: 20 };
+
+/**
+ * Fill colour of a depth or dredged area (S-52 SEABED01): by the shallowest
+ * depth of the area (DRVAL1) against the mariner's contours.
+ */
+export function depareColor(drval1: number, drval2: number, depths: DepthSettings = DEFAULT_DEPTHS): string {
+  const over = (c: number) => drval1 >= c && drval2 > c;
+  if (!(drval1 >= 0 && drval2 > 0)) return 'DEPIT';  // Dries
+  if (depths.twoShades) return over(depths.safetyContour) ? 'DEPDW' : 'DEPVS';
+  if (over(depths.deepContour)) return 'DEPDW';
+  if (over(depths.safetyContour)) return 'DEPMD';
+  if (over(depths.shallowContour)) return 'DEPMS';
+  return 'DEPVS';
+}
+
+const SAFETY_CONTOUR: RenderInstruction = {
+  type: 'line', stroke: 'DEPSC', strokeWidth: 2,
+  priority: 5, description: 'Safety contour',
+  textAttl: ATTL.VALDCO, textColor: 'DEPSC', textSize: 9,
+  textFormat: 'depthContour',
+};
+
+/**
+ * The safety contour actually drawn (S-52 DEPCNT02): the shallowest contour
+ * on the chart that is not shallower than the mariner's safety contour, or
+ * undefined when the chart has none that deep.
+ */
+export function effectiveSafetyContour(contours: Iterable<number>, safetyContour: number): number | undefined {
+  let best: number | undefined;
+  for (const v of contours) if (v >= safetyContour && (best === undefined || v < best)) best = v;
+  return best;
 }
 
 /**
  * Look up rendering instruction for an S-57 feature.
- * Handles conditional symbology for DEPARE and LIGHTS.
+ * Handles conditional symbology for DEPARE, DRGARE, DEPCNT and LIGHTS.
+ * `safetyContour` is the contour value drawn bold (see effectiveSafetyContour).
  */
 export function lookupInstruction(
   objl: number,
-  attributes?: Map<number, string>
+  attributes?: Map<number, string>,
+  depths: DepthSettings = DEFAULT_DEPTHS,
+  safetyContour?: number,
 ): RenderInstruction {
   const base = LOOKUP_TABLE.get(objl);
   if (!base) return DEFAULT_INSTRUCTION;
 
-  // Conditional symbology for DEPARE
-  if (objl === OBJL.DEPARE && attributes) {
+  // Conditional symbology for depth and dredged areas. A missing DRVAL2
+  // means a depth "of at least DRVAL1" (S-52 DEPARE03).
+  if ((objl === OBJL.DEPARE || objl === OBJL.DRGARE) && attributes) {
     const drval1Str = attributes.get(ATTL.DRVAL1);
     const drval2Str = attributes.get(ATTL.DRVAL2);
-    const drval1 = drval1Str != null ? parseFloat(drval1Str) : 0;
-    const drval2 = drval2Str != null ? parseFloat(drval2Str) : 100;
-    return { ...base, fill: depareColor(drval1, drval2) };
+    const drval1 = drval1Str ? parseFloat(drval1Str) : 0;
+    const drval2 = drval2Str ? parseFloat(drval2Str) : drval1 + 0.01;
+    return { ...base, fill: depareColor(drval1, drval2, depths) };
+  }
+
+  if (objl === OBJL.DEPCNT && safetyContour !== undefined && attributes) {
+    const v = attributes.get(ATTL.VALDCO);
+    if (v && parseFloat(v) === safetyContour) return SAFETY_CONTOUR;
   }
 
   // Conditional symbology for LIGHTS: color depends on COLOUR attribute

@@ -51,11 +51,11 @@ export type ColorToken = keyof typeof COLOR_TOKENS;
 /** Day Bright color palette — primary display mode */
 const DAY_BRIGHT: Record<string, RGB> = {
   NODTA: { r: 163, g: 180, b: 183 },
-  DEPVS: { r: 171, g: 217, b: 227 },
+  DEPVS: { r: 115, g: 182, b: 239 },
   DEPIT: { r: 135, g: 199, b: 179 },
-  DEPMS: { r: 184, g: 226, b: 233 },
-  DEPMD: { r: 198, g: 231, b: 237 },
-  DEPDW: { r: 219, g: 241, b: 245 },
+  DEPMS: { r: 152, g: 197, b: 242 },
+  DEPMD: { r: 186, g: 213, b: 225 },
+  DEPDW: { r: 212, g: 234, b: 238 },
   LANDA: { r: 201, g: 185, b: 155 },
   LANDF: { r: 181, g: 165, b: 135 },
   CHGRD: { r: 130, g: 130, b: 130 },

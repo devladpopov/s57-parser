@@ -31,6 +31,9 @@ button.on{background:#0b3d5c;color:#fff;border-color:#0b3d5c}
 .wp{background:#0060c0;color:#fff;border:2px solid #fff;border-radius:50%;font:bold 11px/18px system-ui;text-align:center;box-sizing:border-box}
 .wp.next{background:#e07000}
 #menu input[type=number]{width:52px}
+#shoal{left:50%;top:8px;transform:translateX(-50%);background:#c00;color:#fff;font-weight:600;max-width:60%;text-align:center}
+#shoal[hidden]{display:none}
+#route-warn{color:#c00}
 #status{margin-top:6px;color:#444;font-size:12px;max-width:290px}
 body[data-mode=NIGHT] .panel,body[data-mode=DUSK] .panel{background:#111;color:#c66}
 body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
@@ -48,8 +51,10 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
     <p><span data-ru="Карта NOAA">NOAA cell</span> <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go" data-ru="Скачать">Get</button></p>
     <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
     <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
+    <p><span data-ru="Осадка, м">Draft, m</span> <input id="draft" type="number" min="0" step="0.1"> <span data-ru="запас под килем">under-keel margin</span> <input id="margin" type="number" min="0" step="0.1"></p>
+    <p style="font-size:11px;color:#666" data-ru="Вода мельче осадки с запасом закрашена тёмно-синим, жирная изобата отделяет безопасную воду. Маршрут и курс проверяются на мели.">Water shallower than draft plus margin is dark blue, the bold contour bounds safe water. The route and the course ahead are checked for shoals.</p>
     <p><span data-ru="Кодировка текста">Text encoding</span> <select id="enc"><option value="auto">auto</option><option value="latin1">ISO 8859-1</option><option value="windows-1251">Windows-1251</option><option value="windows-1250">Windows-1250</option></select></p>
-    <div><span data-ru="Маршрут:">Route:</span> <span id="route-info"></span><br>
+    <div><span data-ru="Маршрут:">Route:</span> <span id="route-info"></span><br><span id="route-warn"></span>
       <button id="route-nav" data-ru="Вести">Go</button>
       <button id="route-rev" data-ru="Обратно">Reverse</button>
       <button id="route-clear" data-ru="Очистить">Clear</button><br>
@@ -70,6 +75,7 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
   <button id="follow" class="on" data-ru="Следить">Follow</button>
   <button id="route-edit" data-ru="Маршрут">Route</button>
 </div>
+<div id="shoal" class="panel" hidden></div>
 <div id="rnav" class="panel" hidden>
   <div><small data-ru="Точка">To</small><b id="r-wp">–</b></div>
   <div><small data-ru="Дист.">DTW</small><b id="r-dtw">–</b></div>

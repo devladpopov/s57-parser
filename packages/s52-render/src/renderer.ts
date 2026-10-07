@@ -9,8 +9,8 @@
 import type { GeoJSONFeatureCollection, GeoJSONFeature, GeoJSONGeometry } from '@s57-parser/s57';
 import type { DisplayMode, RGB } from './colors.js';
 import { resolveColor, rgbToCSS } from './colors.js';
-import type { RenderInstruction } from './lookup.js';
-import { lookupInstruction, DEFAULT_INSTRUCTION, ATTL, formatDepth, formatLightChar, lightColorToken } from './lookup.js';
+import type { DepthSettings, RenderInstruction } from './lookup.js';
+import { lookupInstruction, effectiveSafetyContour, DEFAULT_DEPTHS, DEFAULT_INSTRUCTION, ATTL, OBJL, formatDepth, formatLightChar, lightColorToken } from './lookup.js';
 import { SimplifiedRings, visibleAnchor } from './anchor.js';
 
 export interface RenderOptions {
@@ -27,6 +27,8 @@ export interface RenderOptions {
    * Set to false when the chart is an overlay above a basemap.
    */
   background?: boolean;
+  /** Mariner's shallow, safety and deep contours (default 5, 10, 20 m). */
+  depths?: DepthSettings;
 }
 
 export interface ViewTransform {
@@ -61,7 +63,7 @@ export function renderChart(
 
   // Priority order, lookup instructions and lon/lat bounding boxes depend only
   // on the data, so they are computed once per feature collection and cached.
-  const items = prepare(geojson);
+  const items = prepare(geojson, options.depths ?? DEFAULT_DEPTHS);
 
   // Cull features whose bounding box is off screen. The margin keeps symbols,
   // sector-light arcs and labels anchored just outside the edge.
@@ -135,17 +137,36 @@ interface PreparedFeature {
   rings?: SimplifiedRings;
 }
 
-const prepared = new WeakMap<GeoJSONFeatureCollection, PreparedFeature[]>();
+const prepared = new WeakMap<GeoJSONFeatureCollection, { depths: DepthSettings; items: PreparedFeature[] }>();
 
-/** Features with geometry, sorted by display priority, with instructions and bounds. */
-function prepare(geojson: GeoJSONFeatureCollection): PreparedFeature[] {
+const sameDepths = (a: DepthSettings, b: DepthSettings) =>
+  a.shallowContour === b.shallowContour && a.safetyContour === b.safetyContour &&
+  a.deepContour === b.deepContour && !a.twoShades === !b.twoShades;
+
+/** The bold safety contour of a chart: from the depth contour values in it. */
+function safetyContourOf(geojson: GeoJSONFeatureCollection, depths: DepthSettings): number | undefined {
+  const values: number[] = [];
+  for (const f of geojson.features) {
+    if (f.properties.OBJL !== OBJL.DEPCNT) continue;
+    const v = (f.properties._attributes as Map<number, string> | undefined)?.get(ATTL.VALDCO);
+    if (v) values.push(parseFloat(v));
+  }
+  return effectiveSafetyContour(values, depths.safetyContour);
+}
+
+/**
+ * Features with geometry, sorted by display priority, with instructions and
+ * bounds. Cached per feature collection until the depth settings change.
+ */
+function prepare(geojson: GeoJSONFeatureCollection, depths: DepthSettings): PreparedFeature[] {
   const cached = prepared.get(geojson);
-  if (cached) return cached;
+  if (cached && sameDepths(cached.depths, depths)) return cached.items;
+  const safety = safetyContourOf(geojson, depths);
   const items: PreparedFeature[] = [];
   for (const feature of geojson.features) {
     if (!feature.geometry) continue;
     const attrs = feature.properties._attributes as Map<number, string> | undefined;
-    const instr = lookupInstruction(feature.properties.OBJL as number, attrs);
+    const instr = lookupInstruction(feature.properties.OBJL as number, attrs, depths, safety);
     const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
     extendBounds(b, (feature.geometry as { coordinates: unknown }).coordinates);
     if (b.minX > b.maxX) continue;
@@ -153,7 +174,7 @@ function prepare(geojson: GeoJSONFeatureCollection): PreparedFeature[] {
     items.push({ feature, instr, attrs, ...b, rings });
   }
   items.sort((a, b) => a.instr.priority - b.instr.priority); // stable: keeps file order within a priority
-  prepared.set(geojson, items);
+  prepared.set(geojson, { depths: { ...depths }, items });
   return items;
 }
 

@@ -25,6 +25,7 @@ import { fetchEncZip } from './enc-fetch.js';
 import { allSources, onSourcesChanged, registerSource, type ChartSource } from './sources.js';
 import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from './route.js';
 import { describeFeature, formatLatLon, isMeta, parseLatLon } from './feature-info.js';
+import { aheadOf, depthSettings, describeHazard, routeHazards, segmentHazards, worstHazard, type ChartFeature } from './depth.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const statusEl = $('status');
@@ -46,6 +47,8 @@ if (window.innerWidth < 700) menu.open = false;
 
 const map = L.map('map', { zoomControl: false }).setView([42.35, -71.0], 12);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+// Route, track, own ship and warnings go above the chart canvas (overlay pane).
+map.createPane('nav').style.zIndex = '450';
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: '&copy; OpenStreetMap contributors',
@@ -90,6 +93,30 @@ onSourcesChanged(renderSources);
 
 let mode: DisplayMode = 'DAY_BRIGHT';
 const layers = new Map<string, S57Layer>();
+
+// Safe depth: the boat's draft plus an under-keel margin. Water shallower than
+// that is shaded as unsafe, the bold safety contour bounds the safe water, and
+// the route and the course ahead are checked against it (see depth.ts).
+const draftIn = $<HTMLInputElement>('draft');
+const marginIn = $<HTMLInputElement>('margin');
+draftIn.value = localStorage.getItem('draft') ?? '1.5';
+marginIn.value = localStorage.getItem('margin') ?? '0.5';
+const metres = (el: HTMLInputElement) => Math.max(0, Number(el.value) || 0);
+let depths = depthSettings(metres(draftIn), metres(marginIn));
+for (const el of [draftIn, marginIn]) {
+  el.addEventListener('change', () => {
+    localStorage.setItem(el.id, el.value);
+    depths = depthSettings(metres(draftIn), metres(marginIn));
+    for (const l of layers.values()) l.setDepths(depths);
+    checkRoute();
+    const p = boatPos();
+    if (p) checkAhead(p);
+  });
+}
+
+/** Every feature of the loaded charts, for hazard checks. */
+const chartFeatures = (): ChartFeature[] =>
+  [...layers.values()].flatMap(l => (l.geojson?.features ?? []) as unknown as ChartFeature[]);
 
 // ─── Chart storage (IndexedDB) ──────────────────────────────────────────────
 
@@ -186,7 +213,7 @@ function buildLayer(set: ExchangeSet): { name: string; layer: S57Layer } {
     const attrs = byRcid.get(f.properties.RCID as number);
     if (attrs) f.properties._attributes = attrs;
   }
-  return { name: stemOf(set.base.name), layer: new S57Layer(geojson, { mode, opacity: 0.95 }) };
+  return { name: stemOf(set.base.name), layer: new S57Layer(geojson, { mode, opacity: 0.95, depths }) };
 }
 
 const stemOf = (path: string) => (path.split(/[\\/]/).pop() ?? path).replace(/\.000$/i, '');
@@ -244,6 +271,7 @@ async function addCharts(files: ChartFile[]) {
     : '';
   setStatus([saved, ...bad.slice(0, 3)].filter(Boolean).join('. ') + (bad.length > 3 ? ` (+${bad.length - 3})` : ''));
   renderChartList();
+  checkRoute();
 }
 
 async function readPicked(input: HTMLInputElement) {
@@ -271,7 +299,7 @@ let coverage: Promise<Coverage[]> | null = null;
 const BANDS = RU
   ? ['', 'обзорная', 'генеральная', 'прибрежная', 'подходная', 'гавань', 'причальная']
   : ['', 'overview', 'general', 'coastal', 'approach', 'harbour', 'berthing'];
-const cellOutline = L.polygon([], { color: '#c0f', weight: 2, fill: false, dashArray: '6 4', interactive: false });
+const cellOutline = L.polygon([], { pane: 'nav', color: '#c0f', weight: 2, fill: false, dashArray: '6 4', interactive: false });
 
 function inRing(ring: number[], lon: number, lat: number): boolean {
   let inside = false;
@@ -453,6 +481,7 @@ async function renderChartList() {
       layers.get(c.name)?.remove();
       layers.delete(c.name);
       renderChartList();
+      checkRoute();
     };
     li.appendChild(del);
     list.appendChild(li);
@@ -467,9 +496,9 @@ $<HTMLSelectElement>('mode').addEventListener('change', (e) => {
 
 // ─── Own ship: position, track, instruments ────────────────────────────────
 
-const boat = L.circleMarker([0, 0], { radius: 8, color: '#fff', weight: 2, fillColor: '#d00', fillOpacity: 1 });
-const heading = L.polyline([], { color: '#d00', weight: 2 });
-const track = L.polyline([], { color: '#d00', weight: 2, opacity: 0.6, dashArray: '4 4' });
+const boat = L.circleMarker([0, 0], { pane: 'nav', radius: 8, color: '#fff', weight: 2, fillColor: '#d00', fillOpacity: 1 });
+const heading = L.polyline([], { pane: 'nav', color: '#d00', weight: 2 });
+const track = L.polyline([], { pane: 'nav', color: '#d00', weight: 2, opacity: 0.6, dashArray: '4 4' });
 let follow = true;
 let lastTrackPoint: L.LatLng | null = null;
 
@@ -481,6 +510,7 @@ $('follow').addEventListener('click', () => {
 });
 
 const nav = { sog: NaN, cog: NaN, depth: NaN, src: '' };
+Object.assign((window as unknown as { plotter: object }).plotter, { nav }); // for tests and Signal K-less simulators
 
 function fmt(v: number, digits: number, unit: string) {
   return Number.isFinite(v) ? `${v.toFixed(digits)} ${unit}` : '–';
@@ -506,6 +536,7 @@ function updatePosition(lat: number, lon: number, src: string) {
     const dLon = (dist * Math.sin(r)) / (111320 * Math.cos(lat * Math.PI / 180));
     heading.setLatLngs([ll, [lat + dLat, lon + dLon]]);
   }
+  checkAhead({ lat, lon });
   nav.src = src;
   if (follow) map.panTo(ll, { animate: false });
   renderInstruments();
@@ -562,7 +593,7 @@ async function renderTrackList() {
       const line = shownTracks.get(tr.id);
       if (line) { line.remove(); shownTracks.delete(tr.id); }
       else {
-        const pl = L.polyline(tr.points.map(([la, lo]) => [la, lo] as [number, number]), { color: '#8a2be2', weight: 3, opacity: 0.8 }).addTo(map);
+        const pl = L.polyline(tr.points.map(([la, lo]) => [la, lo] as [number, number]), { pane: 'nav', color: '#8a2be2', weight: 3, opacity: 0.8 }).addTo(map);
         shownTracks.set(tr.id, pl);
         if (tr.points.length) map.fitBounds(pl.getBounds().pad(0.1));
       }
@@ -673,8 +704,8 @@ let route: Waypoint[] = JSON.parse(localStorage.getItem('route') ?? '[]');
 let nextWp = Number(localStorage.getItem('route-next') ?? 0);
 let editingRoute = false;
 let steering = localStorage.getItem('route-nav') === '1';
-const routeLine = L.polyline([], { color: '#0060c0', weight: 3 });
-const steerLine = L.polyline([], { color: '#e07000', weight: 3, dashArray: '8 6', interactive: false });
+const routeLine = L.polyline([], { pane: 'nav', color: '#0060c0', weight: 3 });
+const steerLine = L.polyline([], { pane: 'nav', color: '#e07000', weight: 3, dashArray: '8 6', interactive: false });
 const wpMarkers = L.layerGroup().addTo(map);
 routeLine.addTo(map);
 const planSpeed = $<HTMLInputElement>('plan-speed');
@@ -726,7 +757,42 @@ function renderRoute() {
     : t('none, press Route and tap the map', 'нет, нажмите «Маршрут» и ставьте точки на карте');
   $('route-nav').classList.toggle('on', steering);
   $('route-edit').classList.toggle('on', editingRoute);
+  checkRoute();
   renderGuidance();
+}
+
+// Hazards on the route: red marks where a leg first enters water shallower
+// than the safe depth, land, or passes a danger, and a line under the route.
+const hazardMarks = L.layerGroup().addTo(map);
+
+function checkRoute() {
+  hazardMarks.clearLayers();
+  const warn = $('route-warn');
+  const legs = route.length > 1 ? routeHazards(route, chartFeatures(), depths.safetyContour) : [];
+  warn.textContent = legs.length
+    ? `${t('Danger', 'Опасно')}: ` + legs.slice(0, 3).map(({ leg, hazards }) =>
+        `${leg + 1}–${leg + 2} ${describeHazard(worstHazard(hazards)!, RU)}${hazards.length > 1 ? ` (+${hazards.length - 1})` : ''}`).join('; ') +
+      (legs.length > 3 ? ` (+${legs.length - 3})` : '')
+    : '';
+  for (const { leg, hazards } of legs) {
+    for (const h of hazards.slice(0, 20)) {
+      L.circleMarker([h.lat, h.lon], { pane: 'nav', radius: 6, color: '#fff', weight: 2, fillColor: '#c00', fillOpacity: 1 })
+        .bindTooltip(`${leg + 1}–${leg + 2}: ${describeHazard(h, RU)}`).addTo(hazardMarks);
+    }
+  }
+}
+
+// The course ahead: 6 minutes at the current speed, at least 0.1 and at most
+// 2 miles. A shoal, land or danger on it shows a red banner and turns the
+// course line red. Not checked when the boat is (nearly) stopped.
+function checkAhead(p: Waypoint) {
+  const banner = $('shoal');
+  const moving = Number.isFinite(nav.cog) && nav.sog > 0.5;
+  const dist = Math.min(2, Math.max(0.1, nav.sog / 10));
+  const h = moving ? segmentHazards(p, aheadOf(p, nav.cog, dist), chartFeatures(), depths.safetyContour)[0] : undefined;
+  banner.hidden = !h;
+  heading.setStyle({ color: h ? '#f00' : '#d00', weight: h ? 4 : 2 });
+  if (h) banner.textContent = `${t('Ahead', 'По курсу')} ${h.distNm < 0.01 ? t('here', 'здесь') : `${h.distNm.toFixed(2)} ${t('nm', 'мили')}`}: ${describeHazard(h, RU)}`;
 }
 
 function changed() {
@@ -864,6 +930,7 @@ renderRoute();
   }
   renderChartList();
   renderInstruments();
+  checkRoute();
   // Keep writing the last track if it was interrupted recently (app restart).
   const recent = (await allTracks()).sort((a, b) => b.id - a.id)[0];
   const last = recent?.points.at(-1);
