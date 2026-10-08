@@ -62,6 +62,7 @@ if (import.meta.main) {
   const jwk = process.env.LICENSE_PRIVATE_JWK;
   if (!jwk) throw new Error('LICENSE_PRIVATE_JWK is not set');
   const port = Number(process.env.PORT ?? 8787);
-  Bun.serve({ port, fetch: handler(process.env.LICENSE_DB ?? './license-db.json', JSON.parse(jwk), process.env.ALLOWED_ORIGIN ?? '*', undefined, process.env.WAITLIST) });
-  console.log(`Licence server on :${port}`);
+  const hostname = process.env.HOST ?? '127.0.0.1';
+  Bun.serve({ hostname, port, fetch: handler(process.env.LICENSE_DB ?? './license-db.json', JSON.parse(jwk), process.env.ALLOWED_ORIGIN ?? '*', undefined, process.env.WAITLIST) });
+  console.log(`Licence server on ${hostname}:${port}`);
 }
