@@ -1,6 +1,6 @@
 {
-  "appId": "io.github.devladpopov.s57plotter",
-  "appName": "S-57 Plotter",
+  "appId": "ru.stadika.plotter",
+  "appName": "Плоттер Стадики",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

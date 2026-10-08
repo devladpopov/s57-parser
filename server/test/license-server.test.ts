@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeys, verifyLicense } from '../../demo/license.js';
 import { addAccount, issue, MAX_DEVICES, newKey, resetDevices, type Db } from '../license-store.js';
 import { handler, loadDb, saveDb } from '../license-server.js';
+import { waitlistEntry } from '../waitlist.js';
 
 const NOW = 1_790_000_000;
 let keys: Awaited<ReturnType<typeof generateKeys>>;
@@ -77,5 +78,39 @@ describe('licence server', () => {
     expect((await h(post('', 'OPTIONS'))).status).toBe(204);
     expect((await h(post('', 'GET'))).status).toBe(405);
     expect((await h(post('{}', 'POST', '/other'))).status).toBe(404);
+  });
+});
+
+describe('waitlist', () => {
+  const at = new Date('2026-10-08T12:00:00Z');
+
+  test('keeps an email or a phone with the survey answers, trimmed and bounded', () => {
+    const e = waitlistEntry({ contact: ' a@b.ru ', boat: 'яхта', waters: ['Ладога', 5, 'x'.repeat(99)], now: 'Navionics', pay: 'да', wish: 'w'.repeat(2000), src: 'katera' }, at);
+    expect(e).toMatchObject({ time: '2026-10-08T12:00:00.000Z', contact: 'a@b.ru', boat: 'яхта', now: [], pay: 'да', src: 'katera' });
+    expect(e?.waters).toEqual(['Ладога', 'x'.repeat(60)]);
+    expect(e?.wish).toHaveLength(1000);
+    expect(waitlistEntry({ contact: '+7 (921) 123-45-67' }, at)?.contact).toBe('+7 (921) 123-45-67');
+  });
+
+  test('refuses entries without a usable contact', () => {
+    expect(waitlistEntry({ contact: 'hello' }, at)).toBeNull();
+    expect(waitlistEntry({ contact: '12345' }, at)).toBeNull();
+    expect(waitlistEntry(null, at)).toBeNull();
+  });
+
+  test('POST /api/waitlist appends a line', async () => {
+    const path = join(dir, 'wl.jsonl');
+    const h = handler(join(dir, 'db2.json'), keys.privateJwk, '*', () => NOW, path);
+    const send = (body: unknown) => h(new Request('http://x/api/waitlist', { method: 'POST', body: JSON.stringify(body) }));
+    expect((await send({ contact: 'a@b.ru', pay: 'да' })).status).toBe(200);
+    expect((await send({ contact: 'nope' })).status).toBe(400);
+    const lines = readFileSync(path, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ contact: 'a@b.ru', pay: 'да' });
+  });
+
+  test('the licence also answers under /api/', async () => {
+    const h = handler(join(dir, 'db3.json'), keys.privateJwk, '*', () => NOW);
+    expect((await h(new Request('http://x/api/license', { method: 'POST', body: '{"key":"NOPE","dev":"x"}' }))).status).toBe(403);
   });
 });

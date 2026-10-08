@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Карты Ладоги, Невы и Финского залива в телефоне без интернета</title>
+<meta name="description" content="Навигационное приложение для катеров, яхт и лодок: офлайн-карта района, маршруты, треки, предупреждение о мелях по вашей осадке. Запись со скидкой 50% на первый сезон.">
+<meta name="theme-color" content="#0b3d5c">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.5 system-ui,sans-serif;color:#1b2733;background:#f5f8fa}
+.wrap{max-width:880px;margin:0 auto;padding:0 18px}
+header{background:#0b3d5c;color:#fff;padding:28px 0 36px}
+header .brand{font-weight:600;opacity:.85}
+h1{font-size:32px;line-height:1.2;margin:14px 0 10px}
+.lead{font-size:19px;opacity:.95;margin:0 0 20px}
+.hero{display:flex;gap:28px;align-items:center;flex-wrap:wrap}
+.hero .text{flex:1 1 360px}
+.hero img{flex:0 0 260px;width:260px;border-radius:14px;box-shadow:0 6px 24px #0007}
+.btn{display:inline-block;background:#f08a00;color:#fff;font-weight:600;padding:13px 22px;border-radius:8px;text-decoration:none;border:0;font-size:17px;cursor:pointer}
+.btn.ghost{background:transparent;border:2px solid #fff8;margin-left:8px}
+section{padding:34px 0}
+h2{font-size:25px;margin:0 0 16px}
+.feats{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;list-style:none;padding:0;margin:0}
+.feats li{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px #0001}
+.feats b{display:block;margin-bottom:2px}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.plan{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 4px #0001;border:2px solid transparent}
+.plan.main{border-color:#f08a00}
+.plan h3{margin:0 0 6px}
+.price{font-size:24px;font-weight:700;margin:4px 0}
+.price small{font-size:15px;font-weight:400;color:#556}
+.plan ul{padding-left:18px;margin:8px 0 0}
+.tag{display:inline-block;background:#eef3f6;border-radius:6px;padding:1px 8px;font-size:14px;color:#456}
+form{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 4px #0001}
+label.q{display:block;font-weight:600;margin:16px 0 6px}
+.opts label{display:inline-block;margin:0 14px 6px 0;font-weight:400}
+input[type=text]{width:100%;font:inherit;padding:10px 12px;border:1px solid #b9c4cc;border-radius:8px}
+textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid #b9c4cc;border-radius:8px;min-height:70px}
+.consent{font-size:14px;color:#556;margin:16px 0}
+#done{display:none;background:#e7f6ea;border-radius:12px;padding:20px}
+#err{color:#b00;margin-top:10px}
+footer{color:#667;font-size:14px;padding:28px 0 40px}
+footer a{color:#0b5c8a}
+.note{font-size:14px;color:#667}
+</style>
+</head><body>
+<header><div class="wrap">
+  <div class="brand">Плоттер Стадики</div>
+  <div class="hero">
+    <div class="text">
+      <h1>Карты Ладоги, Невы и Финского залива в телефоне, без интернета в море</h1>
+      <p class="lead">Маршруты, треки и предупреждение о мелях по осадке вашей лодки. После проверки подписки работает 30 дней без связи.</p>
+      <a class="btn" href="#join">Записаться со скидкой 50%</a><a class="btn ghost" href="app/plotter.html">Открыть плоттер</a>
+    </div>
+    <img src="shot.png" alt="Плоттер на телефоне: карта Невы">
+  </div>
+</div></header>
+
+<section><div class="wrap">
+  <h2>Что умеет</h2>
+  <ul class="feats">
+    <li><b>Офлайн-карта района</b>Финский залив, Нева и Ладога скачиваются в телефон один раз, дальше сеть не нужна.</li>
+    <li><b>Безопасная глубина</b>Укажите осадку и запас под килем: мелководье закрашивается, маршрут и курс впереди проверяются на мели, камни и затонувшие суда.</li>
+    <li><b>Маршруты</b>Точки на карте или по координатам, ведение по маршруту: дистанция, пеленг, отклонение, время прибытия. Импорт и экспорт GPX.</li>
+    <li><b>Треки</b>Запись пути, сохранение и выгрузка в GPX.</li>
+    <li><b>Электронные карты S-57</b>Открывает карты S-57 из файлов (.000, .zip) по правилам отображения S-52, как в судовых системах.</li>
+    <li><b>Приборы лодки</b>Подключение к Signal K по Wi-Fi: глубина, скорость, курс с ваших датчиков.</li>
+  </ul>
+  <p class="note">Android-приложение и веб-версия для любого телефона. Не заменяет официальные навигационные пособия.</p>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Тарифы</h2>
+  <div class="plans">
+    <div class="plan">
+      <h3>Бесплатно</h3>
+      <div class="price">0 ₽</div>
+      <ul><li>Онлайн-карта OpenStreetMap и OpenSeaMap</li><li>Свои файлы карт S-57</li><li>GPS, один маршрут</li></ul>
+    </div>
+    <div class="plan main">
+      <h3>Pro</h3>
+      <div class="price">1990 ₽ <small>за сезон (май-октябрь)</small></div>
+      <div><span class="tag">или 390 ₽ в месяц</span> <span class="tag">2490 ₽ в год</span></div>
+      <ul><li>Офлайн-карта района</li><li>Маршруты и ведение без ограничений</li><li>Треки, GPX</li><li>Безопасная глубина и предупреждения о мелях</li><li>Работа без связи до 30 дней</li></ul>
+    </div>
+    <div class="plan">
+      <h3>Pro с официальными картами <span class="tag">готовим</span></h3>
+      <div class="price">4990 ₽ <small>за сезон</small></div>
+      <div><span class="tag">или 990 ₽ в месяц</span></div>
+      <ul><li>Всё из Pro</li><li>Официальные электронные карты района с корректурой</li></ul>
+    </div>
+  </div>
+</div></section>
+
+<section id="join"><div class="wrap">
+  <h2>Запись на первый сезон</h2>
+  <p>Оставьте контакт: напишем, когда откроем подписку, и дадим скидку 50% на первый сезон. Ничего не списываем.</p>
+  <form id="f">
+    <label class="q" for="contact">Email или телефон</label>
+    <input id="contact" name="contact" type="text" required maxlength="120" autocomplete="email">
+    <label class="q">На чём чаще ходите?</label>
+    <div class="opts">
+      <label><input type="radio" name="boat" value="катер"> катер</label>
+      <label><input type="radio" name="boat" value="яхта"> яхта</label>
+      <label><input type="radio" name="boat" value="лодка с мотором"> лодка с мотором</label>
+      <label><input type="radio" name="boat" value="надувная"> надувная</label>
+      <label><input type="radio" name="boat" value="другое"> другое</label>
+    </div>
+    <label class="q">Где чаще всего?</label>
+    <div class="opts">
+      <label><input type="checkbox" name="waters" value="Ладога"> Ладога</label>
+      <label><input type="checkbox" name="waters" value="Нева"> Нева</label>
+      <label><input type="checkbox" name="waters" value="Финский залив"> Финский залив</label>
+      <label><input type="checkbox" name="waters" value="Свирь, Онега, Волго-Балт"> Свирь, Онега, Волго-Балт</label>
+      <label><input type="checkbox" name="waters" value="другое"> другое</label>
+    </div>
+    <label class="q">Чем пользуетесь для навигации сейчас?</label>
+    <div class="opts">
+      <label><input type="checkbox" name="now" value="Navionics"> Navionics</label>
+      <label><input type="checkbox" name="now" value="другое приложение"> другое приложение</label>
+      <label><input type="checkbox" name="now" value="картплоттер"> картплоттер (Garmin, Lowrance и др.)</label>
+      <label><input type="checkbox" name="now" value="бумажные карты"> бумажные карты</label>
+      <label><input type="checkbox" name="now" value="ничем"> ничем</label>
+    </div>
+    <label class="q">Купили бы Pro за 1990 ₽ за сезон?</label>
+    <div class="opts">
+      <label><input type="radio" name="pay" value="да"> да</label>
+      <label><input type="radio" name="pay" value="только с официальными картами"> только с официальными картами</label>
+      <label><input type="radio" name="pay" value="дешевле"> за меньшую цену</label>
+      <label><input type="radio" name="pay" value="нет"> нет</label>
+    </div>
+    <label class="q" for="wish">Чего не хватает в навигационных приложениях? <span class="note">(необязательно)</span></label>
+    <textarea id="wish" name="wish" maxlength="1000"></textarea>
+    <p class="consent"><label><input type="checkbox" id="agree" required> Согласен на обработку персональных данных ООО «Стадика» для связи по поводу приложения, по <a href="https://stadika.ru/privacy" target="_blank" rel="noopener">политике обработки персональных данных</a>.</label></p>
+    <button class="btn" type="submit">Записаться</button>
+    <div id="err"></div>
+  </form>
+  <div id="done"><b>Записали.</b> Напишем перед открытием подписки. А пока можно попробовать <a href="app/plotter.html">бесплатный плоттер</a>.</div>
+</div></section>
+
+<footer><div class="wrap">
+  ООО «Стадика», ИНН 1001309379. Связь: <a href="mailto:info@stadika.ru">info@stadika.ru</a><br>
+  Карты: © участники OpenStreetMap, OpenSeaMap, Protomaps.
+</div></footer>
+
+<script>
+const f = document.getElementById('f');
+const params = new URLSearchParams(location.search);
+f.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(f);
+  const body = {
+    contact: fd.get('contact'), boat: fd.get('boat') || '', waters: fd.getAll('waters'), now: fd.getAll('now'),
+    pay: fd.get('pay') || '', wish: fd.get('wish') || '', src: params.get('utm_source') || params.get('src') || document.referrer || '',
+  };
+  const err = document.getElementById('err');
+  err.textContent = '';
+  try {
+    const res = await fetch('api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(res.status === 400 ? 'Проверьте email или телефон.' : 'Сервер не ответил, попробуйте позже.');
+    f.style.display = 'none';
+    document.getElementById('done').style.display = 'block';
+  } catch (x) {
+    err.textContent = x.message.startsWith('Проверьте') || x.message.startsWith('Сервер') ? x.message : 'Нет связи, попробуйте ещё раз.';
+  }
+});
+</script>
+</body></html>
