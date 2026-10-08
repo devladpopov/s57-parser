@@ -47,7 +47,7 @@ if (RU) {
 const menu = $<HTMLDetailsElement>('menu-body');
 if (window.innerWidth < 700) menu.open = false;
 
-const map = L.map('map', { zoomControl: false }).setView([42.35, -71.0], 12);
+const map = L.map('map', { zoomControl: false }).setView([59.95, 29.95], 10);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 // Route, track, own ship and warnings go above the chart canvas (overlay pane).
 map.createPane('nav').style.zIndex = '450';
@@ -648,6 +648,7 @@ $('gps').addEventListener('click', () => {
     navigator.geolocation.clearWatch(gpsWatch);
     gpsWatch = null;
     $('gps').classList.remove('on');
+    if (nav.src.startsWith('GPS')) { nav.sog = NaN; nav.cog = NaN; nav.src = t('GPS off', 'GPS выключен'); renderInstruments(); }
     return;
   }
   if (!('geolocation' in navigator)) { setStatus(t('No GPS in this browser', 'В этом браузере нет GPS')); return; }
