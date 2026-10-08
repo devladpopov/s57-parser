@@ -26,6 +26,7 @@ import { allSources, onSourcesChanged, registerSource, type ChartSource } from '
 import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from './route.js';
 import { describeFeature, formatLatLon, isMeta, parseLatLon } from './feature-info.js';
 import { initLicense } from './license-ui.js';
+import { initBasemap } from './basemap.js';
 import { aheadOf, depthSettings, describeHazard, routeHazards, segmentHazards, worstHazard, type ChartFeature } from './depth.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -54,6 +55,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: '&copy; OpenStreetMap contributors',
 }).addTo(map);
+initBasemap(map, t, RU);
 
 // ─── Chart sources ──────────────────────────────────────────────────────────
 

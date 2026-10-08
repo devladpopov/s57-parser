@@ -25,6 +25,8 @@
   "devDependencies": {
     "leaflet": "^1.9.4",
     "maplibre-gl": "^5",
+    "pmtiles": "^3.2.1",
+    "protomaps-leaflet": "^5.1.0",
     "typescript": "^5.8.0"
   }
 }
