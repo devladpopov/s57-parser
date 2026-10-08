@@ -18,7 +18,7 @@ self.addEventListener('install', (e) => {
   // One by one: in the Android app the Leaflet CSS is local and the unpkg
   // copy may be unreachable, which must not fail the whole install.
   e.waitUntil(caches.open(SHELL)
-    .then((c) => Promise.allSettled(SHELL_URLS.map((u) => c.add(u))))
+    .then((c) => Promise.allSettled(SHELL_URLS.map((u) => c.add(new Request(u, { cache: 'reload' })))))
     .then(() => self.skipWaiting()));
 });
 
