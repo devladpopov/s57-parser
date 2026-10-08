@@ -5,5 +5,8 @@
   "server": {
     "androidScheme": "http",
     "cleartext": true
+  },
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
   }
 }
