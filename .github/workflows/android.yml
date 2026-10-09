@@ -45,13 +45,38 @@ jobs:
           # GPS for own-ship position; GPS hardware is optional (Wi-Fi tablets).
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
           npx cap sync android
+          # Light app theme with dark status bar icons (white on white otherwise).
+          styles=android/app/src/main/res/values/styles.xml
+          sed -i 's#Theme.AppCompat.DayNight.NoActionBar#Theme.AppCompat.Light.NoActionBar#; s#<item name="windowNoTitle">true</item>#&\n        <item name="android:windowLightStatusBar">true</item>#' "$styles"
+          cat "$styles"
+          grep -q windowLightStatusBar "$styles"
+          # Every build gets a higher version code so it installs over the previous one.
+          sed -i -E "s#versionCode [0-9]+#versionCode $GITHUB_RUN_NUMBER#" android/app/build.gradle
+          grep -q "versionCode $GITHUB_RUN_NUMBER" android/app/build.gradle
 
       - name: Build APK
         working-directory: apps/android-plotter/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/s57-plotter.apk"
+          ./gradlew assembleRelease --no-daemon
+
+      # Signed with the release key from the repository secrets, so a new build
+      # installs over the old one and RuStore accepts it as an update.
+      - name: Sign APK
+        working-directory: apps/android-plotter/android
+        env:
+          KEYSTORE_B64: ${{ secrets.PLOTTER_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.PLOTTER_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLOTTER_KEY_ALIAS }}
+        run: |
+          bt="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          "$bt/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk "$RUNNER_TEMP/aligned.apk"
+          "$bt/apksigner" sign --ks "$RUNNER_TEMP/release.p12" --ks-type PKCS12 --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out "$GITHUB_WORKSPACE/s57-plotter.apk" "$RUNNER_TEMP/aligned.apk"
+          rm -f "$RUNNER_TEMP/release.p12"
+          "$bt/apksigner" verify --print-certs "$GITHUB_WORKSPACE/s57-plotter.apk" | grep SHA-256
 
       - uses: actions/upload-artifact@v4
         with:
@@ -65,4 +90,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" s57-plotter.apk --prerelease \
             --title "S-57 Plotter for Android ${GITHUB_REF_NAME#plotter-v}" \
-            --notes "Offline S-57 chartplotter prototype for Android (debug-signed APK, install manually). Not for navigation."
+            --notes "Offline S-57 chartplotter prototype for Android (release-signed APK, install manually). Not for navigation."
