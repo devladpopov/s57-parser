@@ -30,8 +30,17 @@ import { initBasemap } from './basemap.js';
 import { aheadOf, depthSettings, describeHazard, routeHazards, segmentHazards, worstHazard, type ChartFeature } from './depth.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+// Status messages pop up as a toast over the map and fade after a while;
+// a tap hides them sooner.
 const statusEl = $('status');
-const setStatus = (text: string) => { statusEl.textContent = text; };
+let statusTimer = 0;
+const setStatus = (text: string) => {
+  statusEl.textContent = text;
+  statusEl.classList.toggle('show', !!text);
+  clearTimeout(statusTimer);
+  if (text) statusTimer = window.setTimeout(() => statusEl.classList.remove('show'), 4000 + text.length * 40);
+};
+statusEl.addEventListener('click', () => statusEl.classList.remove('show'));
 
 // Russian or English UI, by the device language.
 const RU = navigator.language.toLowerCase().startsWith('ru');
@@ -46,6 +55,7 @@ if (RU) {
 // The menu starts folded on phones so the chart gets the screen.
 const menu = $<HTMLDetailsElement>('menu-body');
 if (window.innerWidth < 700) menu.open = false;
+$('menu-btn').addEventListener('click', () => { menu.open = !menu.open; });
 
 const map = L.map('map', { zoomControl: false }).setView([59.95, 29.95], 10);
 L.control.zoom({ position: 'bottomright' }).addTo(map);

@@ -1,88 +1,243 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <title>S-57 Plotter: offline nautical charts</title>
 <meta name="theme-color" content="#0b3d5c">
 <link rel="manifest" href="./plotter.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
+:root{
+  --navy:#0b3d5c;--accent:#0b6bcb;--orange:#f08a00;--danger:#d92d20;
+  --fg:#0f1d2b;--muted:#5f6f80;--line:#e3e8ee;--field:#f2f5f8;
+  --surface:rgba(255,255,255,.94);--sheet:#fff;--chip:#eef2f6;
+  --shadow:0 6px 24px rgba(15,29,43,.16),0 1px 3px rgba(15,29,43,.12);
+  --r:16px;--sa-t:env(safe-area-inset-top,0px);--sa-b:env(safe-area-inset-bottom,0px);
+  --sa-l:env(safe-area-inset-left,0px);--sa-r:env(safe-area-inset-right,0px);
+}
+*{box-sizing:border-box}
 html,body,#map{margin:0;height:100%}
-body{font:14px system-ui,sans-serif}
-.panel{position:absolute;z-index:1000;background:#fff;border-radius:6px;box-shadow:0 1px 6px #0004;padding:8px}
-#menu{left:8px;top:8px;max-width:310px;max-height:calc(100% - 140px);overflow:auto}
-#menu summary{cursor:pointer;font-weight:600;padding:6px 4px;font-size:16px}
-#menu input[type=text]{width:120px}
-#menu ul{padding-left:16px;margin:4px 0}
-#menu p{margin:4px 0}
-.pick{display:inline-block;margin:2px 4px 2px 0}
-.pick input{display:none}
-#inst{left:8px;bottom:24px;display:flex;gap:14px;align-items:flex-end}
-#inst div{text-align:center}
-#inst b{display:block;font-size:22px}
-#inst small{color:#666}
-#ctl{right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
-button,.pick span{font:inherit;padding:6px 10px;border:1px solid #888;border-radius:4px;background:#f4f4f4;cursor:pointer;display:inline-block}
+body{font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--fg);
+  -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow:hidden}
 [hidden]{display:none!important}
-button.on{background:#0b3d5c;color:#fff;border-color:#0b3d5c}
-#rnav{left:8px;bottom:96px;display:flex;gap:12px;align-items:flex-end}
-#rnav[hidden]{display:none}
-#rnav div{text-align:center}
-#rnav b{display:block;font-size:18px}
-#rnav small{color:#666}
-.wp{background:#0060c0;color:#fff;border:2px solid #fff;border-radius:50%;font:bold 11px/18px system-ui;text-align:center;box-sizing:border-box}
-.wp.next{background:#e07000}
-#menu input[type=number]{width:52px}
-#shoal{left:50%;top:8px;transform:translateX(-50%);background:#c00;color:#fff;font-weight:600;max-width:60%;text-align:center}
-#shoal[hidden]{display:none}
-#route-warn{color:#c00}
-#status{margin-top:6px;color:#444;font-size:12px;max-width:290px}
-body[data-mode=NIGHT] .panel,body[data-mode=DUSK] .panel{background:#111;color:#c66}
+button,input,select{font:inherit;color:inherit}
+svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* Floating surfaces over the map */
+.panel{position:absolute;z-index:1000;background:var(--surface);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-radius:var(--r);box-shadow:var(--shadow)}
+
+/* Round map buttons */
+.fab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:56px;height:56px;padding:0;border:0;
+  border-radius:18px;background:var(--surface);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:var(--shadow);
+  color:var(--navy);cursor:pointer;transition:background .15s,color .15s,transform .1s}
+.fab span{font-size:10px;font-weight:600;letter-spacing:.02em;line-height:1}
+.fab:active{transform:scale(.94)}
+.fab.on{background:var(--navy);color:#fff}
+#menu-btn{position:absolute;z-index:1001;left:calc(12px + var(--sa-l));top:calc(12px + var(--sa-t))}
+#ctl{position:absolute;z-index:1000;right:calc(12px + var(--sa-r));top:calc(12px + var(--sa-t));display:flex;flex-direction:column;gap:10px}
+
+/* Leaflet controls in the same style */
+.leaflet-bottom.leaflet-right{bottom:var(--sa-b);right:var(--sa-r)}
+.leaflet-touch .leaflet-bar,.leaflet-bar{border:0!important;border-radius:14px;overflow:hidden;box-shadow:var(--shadow);margin:0 12px 34px 0!important}
+.leaflet-bar a,.leaflet-touch .leaflet-bar a{width:44px!important;height:44px!important;line-height:44px!important;font-size:22px!important;
+  color:var(--navy);background:var(--surface);border-bottom:1px solid var(--line)!important}
+.leaflet-control-attribution{font-size:10px;background:rgba(255,255,255,.7)!important;border-radius:8px 0 0 0;padding:1px 6px!important;
+  max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leaflet-popup-content-wrapper{border-radius:14px;box-shadow:var(--shadow)}
+.leaflet-popup-content{font:14px/1.45 inherit;margin:12px 14px}
+.leaflet-popup-content button{margin-top:8px}
+.wp{background:var(--accent);color:#fff;border:2px solid #fff;border-radius:50%;font:700 11px/18px system-ui;text-align:center;box-shadow:0 1px 4px #0006}
+.wp.next{background:var(--orange)}
+
+/* Instruments */
+#inst{left:calc(12px + var(--sa-l));bottom:calc(30px + var(--sa-b));display:flex;align-items:stretch;padding:10px 6px}
+#inst>div{padding:0 12px;min-width:76px;border-left:1px solid var(--line)}
+#inst>div:first-child{border-left:0}
+#inst small,#rnav small{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#inst b{display:block;font-size:26px;font-weight:650;line-height:1.15;font-variant-numeric:tabular-nums;white-space:nowrap}
+#inst>div.src{display:flex;align-items:flex-end;min-width:0;border-left:0;padding-left:4px}
+#inst #src{text-transform:none;letter-spacing:0;font-weight:500;font-size:12px}
+#rnav{left:calc(12px + var(--sa-l));bottom:calc(112px + var(--sa-b));display:flex;padding:10px 6px}
+#rnav>div{padding:0 10px;border-left:1px solid var(--line)}
+#rnav>div:first-child{border-left:0}
+#rnav b{display:block;font-size:18px;font-weight:650;font-variant-numeric:tabular-nums;white-space:nowrap}
+#shoal{left:50%;top:calc(12px + var(--sa-t));transform:translateX(-50%);background:var(--danger);color:#fff;font-weight:650;max-width:min(60%,420px);
+  text-align:center;padding:10px 16px;border-radius:14px}
+
+/* Status toast */
+#status{position:absolute;z-index:1100;left:50%;bottom:calc(112px + var(--sa-b));transform:translate(-50%,12px);max-width:min(92vw,460px);
+  background:rgba(15,29,43,.92);color:#fff;padding:12px 16px;border-radius:14px;font-size:14px;box-shadow:var(--shadow);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
+#status.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+
+/* Menu: bottom sheet on phones, side panel on wide screens */
+#menu{position:absolute;z-index:1200;left:0;right:0;bottom:0;max-height:82vh;overflow:auto;overscroll-behavior:contain;
+  background:var(--sheet);border-radius:22px 22px 0 0;box-shadow:0 -8px 32px rgba(15,29,43,.22);padding:0 16px calc(16px + var(--sa-b))}
+#menu:has(> details:not([open])){display:none}
+@media (min-width:700px){
+  #menu{left:calc(12px + var(--sa-l));right:auto;top:calc(12px + var(--sa-t));bottom:calc(12px + var(--sa-b));width:380px;max-height:none;border-radius:20px;box-shadow:var(--shadow)}
+}
+#menu summary{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;list-style:none;cursor:pointer;
+  padding:18px 0 12px;background:var(--sheet);font-size:20px;font-weight:700}
+#menu summary::-webkit-details-marker{display:none}
+#menu summary::before{content:"";position:absolute;left:50%;top:7px;width:36px;height:4px;margin-left:-18px;border-radius:2px;background:#cfd6de}
+@media (min-width:700px){#menu summary::before{display:none}}
+#menu summary i{display:flex;width:34px;height:34px;align-items:center;justify-content:center;border-radius:50%;background:var(--chip);color:var(--muted)}
+#menu summary i svg{width:18px;height:18px}
+
+.card{background:var(--field);border-radius:14px;padding:14px;margin:0 0 12px}
+.card h3{margin:0 0 10px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.card p{margin:0 0 10px}
+.card p:last-child{margin-bottom:0}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0!important}
+.state{font-weight:600}
+.row{display:flex;gap:8px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.row:last-child{margin-bottom:0}
+.row>input[type=text],.row>select{flex:1;min-width:0}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0;font-size:13px;color:var(--muted)}
+input[type=text],input[type=number],select{height:44px;padding:0 12px;border:1px solid var(--line);border-radius:12px;background:#fff;outline:none;width:100%}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(11,107,203,.15)}
+.btn,.pick span,#menu li button,.leaflet-popup-content button{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:44px;padding:0 16px;
+  border:0;border-radius:12px;background:#fff;color:var(--navy);font-weight:600;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);white-space:nowrap}
+.btn:active,.pick span:active{filter:brightness(.95)}
+.btn.primary,.pick.primary span{background:var(--navy);color:#fff;box-shadow:none}
+.btn.on{background:var(--navy);color:#fff}
+.btn.danger{color:var(--danger)}
+.grow{flex:1}
+.pick{display:inline-flex;flex:1}
+.pick span{width:100%}
+.pick input{display:none}
+#menu ul{list-style:none;padding:0;margin:0}
+#menu ul:empty{display:none}
+#menu li{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
+#menu li:first-child{border-top:0;padding-top:0}
+#menu li button{height:32px;padding:0 10px;font-size:13px}
+#tracks:not(:has(li)){font-size:13px;color:var(--muted)}
+#sources label{display:flex!important;align-items:center;gap:10px;padding:4px 0}
+#sources input{width:20px;height:20px;accent-color:var(--navy)}
+#route-warn{color:var(--danger);font-weight:600}
+#route-warn:empty{display:none}
+.lic-dev{font-size:12px;color:var(--muted)}
+.lic-dev code{font-size:12px}
+.disclaimer{font-size:12px;color:var(--danger);text-align:center;margin:4px 0 0}
+
+/* Dusk and night: dark surfaces, red text keeps night vision */
+body[data-mode=DUSK],body[data-mode=NIGHT]{--fg:#e8b4a8;--muted:#a07068;--line:#3a2a28;--field:#1a1414;--surface:rgba(18,14,14,.92);--sheet:#120e0e;--chip:#2a2020;--navy:#e07a6a}
+body[data-mode=NIGHT]{--fg:#c66;--muted:#844;--navy:#c55}
+body[data-mode=DUSK] input,body[data-mode=DUSK] select,body[data-mode=DUSK] .btn,body[data-mode=DUSK] .pick span,body[data-mode=DUSK] #menu li button,
+body[data-mode=NIGHT] input,body[data-mode=NIGHT] select,body[data-mode=NIGHT] .btn,body[data-mode=NIGHT] .pick span,body[data-mode=NIGHT] #menu li button{background:#0d0a0a}
+body[data-mode=DUSK] .fab.on,body[data-mode=NIGHT] .fab.on,body[data-mode=DUSK] .btn.primary,body[data-mode=NIGHT] .btn.primary,
+body[data-mode=DUSK] .pick.primary span,body[data-mode=NIGHT] .pick.primary span{background:var(--navy);color:#120e0e}
 body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
 </style>
 </head><body>
 <div id="map"></div>
-<div id="menu" class="panel">
-  <details id="menu-body" open><summary data-ru="Меню">Menu</summary>
-    <p>
-      <label class="pick"><input id="file" type="file" multiple><span data-ru="Открыть файлы">Open files</span></label>
-      <label class="pick"><input id="folder" type="file" webkitdirectory multiple><span data-ru="Открыть папку">Open folder</span></label>
-    </p>
-    <p style="font-size:11px;color:#666" data-ru="S-57: .000 с обновлениями .001… или .zip. Папка: например, ENC_ROOT с флешки, все карты сразу.">S-57: .000 with .001… updates, or .zip. Folder: e.g. ENC_ROOT from a USB stick, all cells at once.</p>
-    <p style="font-size:11px;color:#666" data-ru="Нажмите на объект карты, чтобы узнать, что это. Нажатие вне карт ищет бесплатную карту NOAA (воды США).">Tap a chart object to see what it is; tap elsewhere to find the free NOAA cell for that spot (US waters).</p>
-    <p><span data-ru="Карта NOAA">NOAA cell</span> <input id="noaa-cell" type="text" placeholder="US5MA12M"> <button id="noaa-go" data-ru="Скачать">Get</button></p>
-    <p>Signal K <input id="sk-host" type="text" placeholder="192.168.4.1:3000"> <button id="sk-go" data-ru="Подключить">Connect</button></p>
-    <p><span data-ru="Режим">Display</span> <select id="mode"><option>DAY_BRIGHT</option><option>DUSK</option><option>NIGHT</option></select></p>
-    <p><span data-ru="Осадка, м">Draft, m</span> <input id="draft" type="number" min="0" step="0.1"> <span data-ru="запас под килем">under-keel margin</span> <input id="margin" type="number" min="0" step="0.1"></p>
-    <p style="font-size:11px;color:#666" data-ru="Вода мельче осадки с запасом закрашена тёмно-синим, жирная изобата отделяет безопасную воду. Маршрут и курс проверяются на мели.">Water shallower than draft plus margin is dark blue, the bold contour bounds safe water. The route and the course ahead are checked for shoals.</p>
-    <p><span data-ru="Кодировка текста">Text encoding</span> <select id="enc"><option value="auto">auto</option><option value="latin1">ISO 8859-1</option><option value="windows-1251">Windows-1251</option><option value="windows-1250">Windows-1250</option></select></p>
-    <div><span data-ru="Маршрут:">Route:</span> <span id="route-info"></span><br><span id="route-warn"></span>
-      <button id="route-nav" data-ru="Вести">Go</button>
-      <button id="route-rev" data-ru="Обратно">Reverse</button>
-      <button id="route-clear" data-ru="Очистить">Clear</button><br>
-      <label class="pick"><input id="gpx-in" type="file" accept=".gpx"><span data-ru="Открыть GPX">Open GPX</span></label>
-      <button id="gpx-out" data-ru="Сохранить GPX">Save GPX</button><br>
-      <span data-ru="Скорость для расчёта, уз">Planning speed, kn</span> <input id="plan-speed" type="number" min="0.5" step="0.5"><br>
-      <input id="wp-coord" type="text" style="width:170px" placeholder="59 56.316 N 30 18.846 E"> <button id="wp-add" data-ru="Точка">Point</button>
-    </div>
-    <div><span data-ru="Треки:">Tracks:</span> <button id="track-new" data-ru="Новый трек">New track</button><ul id="tracks"></ul></div>
-    <div><span data-ru="Источники карт:">Chart sources:</span><div id="sources"></div></div>
-    <div><span data-ru="Карты на устройстве:">Charts on this device:</span><ul id="charts"></ul></div>
-    <div><span data-ru="Офлайн-подложка (залив, Нева, Ладога):">Offline base map (Gulf of Finland, Neva, Ladoga):</span> <span id="bm-state"></span><br>
-      <button id="bm-get" data-ru="Скачать">Download</button>
-      <label class="pick"><input id="bm-file" type="file" accept=".pmtiles"><span data-ru="Открыть файл">Open file</span></label>
-      <button id="bm-del" data-ru="Удалить" hidden>Delete</button></div>
-    <div><span data-ru="Подписка:">Subscription:</span> <span id="lic-state"></span><br>
-      <input id="lic-in" type="text" style="width:170px" placeholder="ABCDE-FGHJK"> <button id="lic-go" data-ru="Активировать">Activate</button><br>
-      <small><span data-ru="Код устройства:">Device code:</span> <code id="lic-dev"></code></small></div>
-    <p style="font-size:11px;color:#a00" data-ru="Не для навигации. Прототип.">Not for navigation. Prototype.</p>
+
+<button id="menu-btn" class="fab" title="Menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span data-ru="Меню">Menu</span></button>
+
+<div id="menu">
+  <details id="menu-body" open><summary><span data-ru="Плоттер">Plotter</span><i><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></i></summary>
+
+    <section class="card">
+      <h3 data-ru="Карты">Charts</h3>
+      <div class="row">
+        <label class="pick primary"><input id="file" type="file" multiple><span data-ru="Открыть файлы">Open files</span></label>
+        <label class="pick"><input id="folder" type="file" webkitdirectory multiple><span data-ru="Открыть папку">Open folder</span></label>
+      </div>
+      <ul id="charts"></ul>
+      <p class="hint" data-ru="S-57: .000 с обновлениями .001… или .zip. Папка: например, ENC_ROOT с флешки. Нажмите на объект карты, чтобы узнать, что это.">S-57: .000 with .001… updates, or .zip. Folder: e.g. ENC_ROOT from a USB stick. Tap a chart object to see what it is.</p>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Офлайн-подложка">Offline base map</h3>
+      <p><span data-ru="Финский залив, Нева, Ладога:">Gulf of Finland, Neva, Ladoga:</span> <span id="bm-state" class="state"></span></p>
+      <div class="row">
+        <button id="bm-get" class="btn primary grow" data-ru="Скачать">Download</button>
+        <label class="pick"><input id="bm-file" type="file" accept=".pmtiles"><span data-ru="Из файла">From file</span></label>
+        <button id="bm-del" class="btn danger" data-ru="Удалить" hidden>Delete</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Маршрут">Route</h3>
+      <p><span id="route-info"></span><br><span id="route-warn"></span></p>
+      <div class="row">
+        <button id="route-nav" class="btn primary grow" data-ru="Вести">Go</button>
+        <button id="route-rev" class="btn" data-ru="Обратно">Reverse</button>
+        <button id="route-clear" class="btn danger" data-ru="Очистить">Clear</button>
+      </div>
+      <div class="row">
+        <input id="wp-coord" type="text" placeholder="59 56.316 N 30 18.846 E">
+        <button id="wp-add" class="btn" data-ru="+ Точка">+ Point</button>
+      </div>
+      <div class="row">
+        <label class="field"><span data-ru="Скорость для расчёта, уз">Planning speed, kn</span><input id="plan-speed" type="number" min="0.5" step="0.5"></label>
+      </div>
+      <div class="row">
+        <label class="pick"><input id="gpx-in" type="file" accept=".gpx"><span data-ru="Открыть GPX">Open GPX</span></label>
+        <button id="gpx-out" class="btn grow" data-ru="Сохранить GPX">Save GPX</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Треки">Tracks</h3>
+      <ul id="tracks"></ul>
+      <div class="row" style="margin-top:10px"><button id="track-new" class="btn grow" data-ru="Начать новый трек">Start a new track</button></div>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Судно и безопасная глубина">Boat and safe depth</h3>
+      <div class="row">
+        <label class="field"><span data-ru="Осадка, м">Draft, m</span><input id="draft" type="number" min="0" step="0.1"></label>
+        <label class="field"><span data-ru="Запас под килем, м">Under-keel margin, m</span><input id="margin" type="number" min="0" step="0.1"></label>
+      </div>
+      <p class="hint" data-ru="Вода мельче осадки с запасом закрашена тёмно-синим, жирная изобата отделяет безопасную воду. Маршрут и курс проверяются на мели.">Water shallower than draft plus margin is dark blue, the bold contour bounds safe water. The route and the course ahead are checked for shoals.</p>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Отображение">Display</h3>
+      <div class="row">
+        <label class="field"><span data-ru="Режим">Mode</span>
+          <select id="mode"><option value="DAY_BRIGHT" data-ru="День">Day</option><option value="DUSK" data-ru="Сумерки">Dusk</option><option value="NIGHT" data-ru="Ночь">Night</option></select></label>
+        <label class="field"><span data-ru="Кодировка текста">Text encoding</span>
+          <select id="enc"><option value="auto" data-ru="авто">auto</option><option value="latin1">ISO 8859-1</option><option value="windows-1251">Windows-1251</option><option value="windows-1250">Windows-1250</option></select></label>
+      </div>
+      <div id="sources"></div>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Приборы и другие карты">Instruments and more charts</h3>
+      <div class="row">
+        <input id="sk-host" type="text" placeholder="Signal K 192.168.4.1:3000">
+        <button id="sk-go" class="btn" data-ru="Подключить">Connect</button>
+      </div>
+      <div class="row">
+        <input id="noaa-cell" type="text" placeholder="NOAA US5MA12M">
+        <button id="noaa-go" class="btn" data-ru="Скачать">Get</button>
+      </div>
+      <p class="hint" data-ru="Signal K передаёт глубину, скорость и курс с приборов яхты по Wi-Fi. Бесплатные карты NOAA есть только для вод США: нажмите на карту вне загруженных карт, чтобы найти нужную.">Signal K brings depth, speed and course from the boat's instruments over Wi-Fi. Free NOAA charts cover US waters only: tap the map outside loaded charts to find one.</p>
+    </section>
+
+    <section class="card">
+      <h3 data-ru="Подписка">Subscription</h3>
+      <p id="lic-state" class="state"></p>
+      <div class="row">
+        <input id="lic-in" type="text" placeholder="ABCDE-FGHJK" autocapitalize="characters" autocomplete="off">
+        <button id="lic-go" class="btn primary" data-ru="Активировать">Activate</button>
+      </div>
+      <p class="lic-dev"><span data-ru="Код устройства:">Device code:</span> <code id="lic-dev"></code></p>
+    </section>
+
+    <p class="disclaimer" data-ru="Прототип. Не для навигации.">Prototype. Not for navigation.</p>
   </details>
-  <div id="status"></div>
 </div>
-<div id="ctl" class="panel">
-  <button id="gps">GPS</button>
-  <button id="follow" class="on" data-ru="Следить">Follow</button>
-  <button id="route-edit" data-ru="Маршрут">Route</button>
+
+<div id="ctl">
+  <button id="gps" class="fab" title="GPS"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span>GPS</span></button>
+  <button id="follow" class="fab on" title="Follow"><svg viewBox="0 0 24 24"><path d="M12 3l7 18-7-4-7 4z"/></svg><span data-ru="Следить">Follow</span></button>
+  <button id="route-edit" class="fab" title="Route"><svg viewBox="0 0 24 24"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg><span data-ru="Маршрут">Route</span></button>
 </div>
+
 <div id="shoal" class="panel" hidden></div>
 <div id="rnav" class="panel" hidden>
   <div><small data-ru="Точка">To</small><b id="r-wp">–</b></div>
@@ -95,7 +250,8 @@ body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
   <div><small data-ru="Скорость">SOG</small><b id="sog">–</b></div>
   <div><small data-ru="Курс">COG</small><b id="cog">–</b></div>
   <div><small data-ru="Глубина">Depth</small><b id="depth">–</b></div>
-  <div><small id="src"></small></div>
+  <div class="src"><small id="src"></small></div>
 </div>
+<div id="status"></div>
 <script type="module" src="./dist/plotter.js"></script>
 </body></html>
