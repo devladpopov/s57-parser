@@ -3,17 +3,22 @@
  *
  *   POST /license   {"key": "ABCDE-FGHJK", "dev": "<device id>"}  ->  {"token": "..."} | {"error": "..."}
  *   POST /waitlist  {"contact": "...", survey answers}  ->  {"ok": true}
+ *   /pay...         buying a key through Robokassa, see pay.ts
  *
- * Both also answer under /api/ (behind the site's reverse proxy).
+ * All also answer under /api/ (behind the site's reverse proxy).
  *
  * Environment: LICENSE_PRIVATE_JWK (signing key, JSON), LICENSE_DB (accounts
  * file, default ./license-db.json), WAITLIST (sign-ups,
  * default ./waitlist.jsonl), PORT (default 8787), ALLOWED_ORIGIN
- * (CORS, default *). Accounts are added with server/license-admin.ts.
+ * (CORS, default *), ORDERS (payments, default ./orders.json) and
+ * ROBOKASSA_LOGIN, ROBOKASSA_PASS1, ROBOKASSA_PASS2, ROBOKASSA_TEST=1,
+ * PAY_PAGE (payments are off without the login). Accounts can also be added
+ * by hand with server/license-admin.ts.
  */
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { issue, type Db } from './license-store.js';
 import { appendWaitlist, waitlistEntry } from './waitlist.js';
+import { backToSite, confirmPayment, createOrder, loadOrders, orderStatus, saveOrders, type RobokassaConfig } from './pay.js';
 
 export function loadDb(path: string): Db {
   return existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as Db) : {};
@@ -24,14 +29,66 @@ export function saveDb(path: string, db: Db): void {
   renameSync(`${path}.tmp`, path);
 }
 
-export function handler(dbPath: string, privateJwk: JsonWebKey, origin: string, clock = () => Math.floor(Date.now() / 1000), waitlistPath = './waitlist.jsonl') {
+export interface PayOptions {
+  ordersPath: string;
+  cfg: RobokassaConfig;
+}
+
+export function handler(dbPath: string, privateJwk: JsonWebKey, origin: string, clock = () => Math.floor(Date.now() / 1000), waitlistPath = './waitlist.jsonl', pay?: PayOptions) {
   const cors = { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' };
   const json = (body: unknown, status = 200) => Response.json(body, { status, headers: cors });
-  // One request at a time touches the accounts file.
+  // One request at a time touches the accounts and orders files.
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(f: () => Promise<T>): Promise<T> => { const p = queue.then(f); queue = p.catch(() => {}); return p; };
+
+  async function payRoute(path: string, req: Request, url: URL, { ordersPath, cfg }: PayOptions): Promise<Response> {
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+    if (req.method === 'GET' && (path === '/pay/success' || path === '/pay/fail')) {
+      return Response.redirect(backToSite(cfg, url, path === '/pay/fail'), 302);
+    }
+    if (req.method !== 'POST') return json({ error: 'bad-request' }, 405);
+    if (path === '/pay/result') {
+      let form: Record<string, string>;
+      try {
+        form = Object.fromEntries([...(await req.formData()).entries()].map(([k, v]) => [k, String(v)]));
+      } catch {
+        return new Response('bad request', { status: 400 });
+      }
+      const reply = await serial(async () => {
+        const o = loadOrders(ordersPath);
+        const db = loadDb(dbPath);
+        const r = confirmPayment(o, db, cfg, form, clock());
+        if (r) { saveDb(dbPath, db); saveOrders(ordersPath, o); }
+        return r;
+      });
+      return new Response(reply ?? 'bad sign', { status: reply ? 200 : 400 });
+    }
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ error: 'bad-request' }, 400);
+    }
+    if (path === '/pay') {
+      const r = await serial(async () => {
+        const o = loadOrders(ordersPath);
+        const created = createOrder(o, cfg, body, clock());
+        if (created) saveOrders(ordersPath, o);
+        return created;
+      });
+      return r ? json({ url: r.url }) : json({ error: 'bad-request' }, 400);
+    }
+    if (path === '/pay/status') {
+      const r = orderStatus(loadOrders(ordersPath), loadDb(dbPath), body);
+      return r ? json(r) : json({ error: 'not-found' }, 404);
+    }
+    return json({ error: 'not-found' }, 404);
+  }
+
   return async (req: Request): Promise<Response> => {
-    const path = new URL(req.url).pathname.replace(/^\/api(?=\/)/, '');
+    const url = new URL(req.url);
+    const path = url.pathname.replace(/^\/api(?=\/)/, '');
+    if (pay && path.startsWith('/pay')) return payRoute(path, req, url, pay);
     if (path !== '/license' && path !== '/waitlist') return json({ error: 'not-found' }, 404);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (req.method !== 'POST') return json({ error: 'bad-request' }, 405);
@@ -59,10 +116,17 @@ export function handler(dbPath: string, privateJwk: JsonWebKey, origin: string, 
 }
 
 if (import.meta.main) {
-  const jwk = process.env.LICENSE_PRIVATE_JWK;
+  const e = process.env;
+  const jwk = e.LICENSE_PRIVATE_JWK;
   if (!jwk) throw new Error('LICENSE_PRIVATE_JWK is not set');
-  const port = Number(process.env.PORT ?? 8787);
-  const hostname = process.env.HOST ?? '127.0.0.1';
-  Bun.serve({ hostname, port, fetch: handler(process.env.LICENSE_DB ?? './license-db.json', JSON.parse(jwk), process.env.ALLOWED_ORIGIN ?? '*', undefined, process.env.WAITLIST) });
-  console.log(`Licence server on ${hostname}:${port}`);
+  const port = Number(e.PORT ?? 8787);
+  const hostname = e.HOST ?? '127.0.0.1';
+  const pay: PayOptions | undefined = e.ROBOKASSA_LOGIN
+    ? {
+        ordersPath: e.ORDERS ?? './orders.json',
+        cfg: { login: e.ROBOKASSA_LOGIN, pass1: e.ROBOKASSA_PASS1 ?? '', pass2: e.ROBOKASSA_PASS2 ?? '', test: e.ROBOKASSA_TEST === '1', page: e.PAY_PAGE ?? 'https://plotter.stadika.ru/pay/' },
+      }
+    : undefined;
+  Bun.serve({ hostname, port, fetch: handler(e.LICENSE_DB ?? './license-db.json', JSON.parse(jwk), e.ALLOWED_ORIGIN ?? '*', undefined, e.WAITLIST, pay) });
+  console.log(`Licence server on ${hostname}:${port}${pay ? `, payments ${pay.cfg.test ? 'TEST' : 'live'}` : ''}`);
 }

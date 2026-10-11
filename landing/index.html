@@ -2,7 +2,7 @@
 <html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Карты Ладоги, Невы и Финского залива в телефоне без интернета</title>
-<meta name="description" content="Навигационное приложение для катеров, яхт и лодок: офлайн-карта района, маршруты, треки, предупреждение о мелях по вашей осадке. Запись со скидкой 50% на первый сезон.">
+<meta name="description" content="Навигационное приложение для катеров, яхт и лодок: офлайн-карта района, маршруты, треки, предупреждение о мелях по вашей осадке. Pro от 390 ₽ в месяц.">
 <meta name="theme-color" content="#0b3d5c">
 <style>
 *{box-sizing:border-box}
@@ -37,7 +37,8 @@ input[type=text]{width:100%;font:inherit;padding:10px 12px;border:1px solid #b9c
 textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid #b9c4cc;border-radius:8px;min-height:70px}
 .consent{font-size:14px;color:#556;margin:16px 0}
 #done{display:none;background:#e7f6ea;border-radius:12px;padding:20px}
-#err{color:#b00;margin-top:10px}
+#err,.err{color:#b00;margin-top:10px}
+input[type=radio]{margin-right:4px}
 footer{color:#667;font-size:14px;padding:28px 0 40px}
 footer a{color:#0b5c8a}
 .note{font-size:14px;color:#667}
@@ -49,7 +50,7 @@ footer a{color:#0b5c8a}
     <div class="text">
       <h1>Карты Ладоги, Невы и Финского залива в телефоне, без интернета в море</h1>
       <p class="lead">Маршруты, треки и предупреждение о мелях по осадке вашей лодки. После проверки подписки работает 30 дней без связи.</p>
-      <a class="btn" href="#join">Записаться со скидкой 50%</a><a class="btn ghost" href="app/plotter.html">Открыть плоттер</a>
+      <a class="btn" href="#buy">Купить Pro</a><a class="btn ghost" href="app/plotter.html">Открыть плоттер</a>
     </div>
     <img src="shot.png" alt="Плоттер на телефоне: карта Невы">
   </div>
@@ -74,13 +75,14 @@ footer a{color:#0b5c8a}
     <div class="plan">
       <h3>Бесплатно</h3>
       <div class="price">0 ₽</div>
-      <ul><li>Онлайн-карта OpenStreetMap и OpenSeaMap</li><li>Свои файлы карт S-57</li><li>GPS, один маршрут</li></ul>
+      <ul><li>Обзорная карта мира и морские знаки OpenSeaMap</li><li>Свои файлы карт S-57</li><li>GPS, один маршрут</li></ul>
     </div>
     <div class="plan main">
       <h3>Pro</h3>
       <div class="price">1990 ₽ <small>за сезон (май-октябрь)</small></div>
       <div><span class="tag">или 390 ₽ в месяц</span> <span class="tag">2490 ₽ в год</span></div>
       <ul><li>Офлайн-карта района</li><li>Маршруты и ведение без ограничений</li><li>Треки, GPX</li><li>Безопасная глубина и предупреждения о мелях</li><li>Работа без связи до 30 дней</li></ul>
+      <p><a class="btn" href="#buy">Купить</a></p>
     </div>
     <div class="plan">
       <h3>Pro с официальными картами <span class="tag">готовим</span></h3>
@@ -91,9 +93,27 @@ footer a{color:#0b5c8a}
   </div>
 </div></section>
 
+<section id="buy"><div class="wrap">
+  <h2>Купить Pro</h2>
+  <form id="pay">
+    <label class="q">Срок</label>
+    <div class="opts">
+      <label><input type="radio" name="tariff" value="month"> 1 месяц, 390 ₽</label>
+      <label><input type="radio" name="tariff" value="season" checked> сезон (6 месяцев), 1990 ₽</label>
+      <label><input type="radio" name="tariff" value="year"> 1 год, 2490 ₽</label>
+    </div>
+    <label class="q" for="pay-email">Email для чека</label>
+    <input id="pay-email" name="email" type="text" required maxlength="120" autocomplete="email" inputmode="email">
+    <p class="consent"><label><input type="checkbox" id="pay-agree" required> Принимаю условия <a href="oferta.html" target="_blank">публичной оферты</a> и согласен на обработку персональных данных по <a href="https://stadika.ru/privacy" target="_blank" rel="noopener">политике ООО «Стадика»</a>.</label></p>
+    <button class="btn" type="submit">Перейти к оплате</button>
+    <div id="pay-err" class="err"></div>
+    <p class="note">Оплата картой или через СБП на странице Robokassa. Сразу после оплаты на сайте появится ключ активации: введите его в плоттере, «Меню», «Подписка». Ключ работает на двух устройствах.</p>
+  </form>
+</div></section>
+
 <section id="join"><div class="wrap">
-  <h2>Запись на первый сезон</h2>
-  <p>Оставьте контакт: напишем, когда откроем подписку, и дадим скидку 50% на первый сезон. Ничего не списываем.</p>
+  <h2>Официальные карты: запись</h2>
+  <p>Готовим тариф с официальными электронными картами района. Оставьте контакт: напишем, когда он откроется. Ничего не списываем.</p>
   <form id="f">
     <label class="q" for="contact">Email или телефон</label>
     <input id="contact" name="contact" type="text" required maxlength="120" autocomplete="email">
@@ -134,15 +154,31 @@ footer a{color:#0b5c8a}
     <button class="btn" type="submit">Записаться</button>
     <div id="err"></div>
   </form>
-  <div id="done"><b>Записали.</b> Напишем перед открытием подписки. А пока можно попробовать <a href="app/plotter.html">бесплатный плоттер</a>.</div>
+  <div id="done"><b>Записали.</b> Напишем, когда откроем тариф с официальными картами. А пока можно попробовать <a href="app/plotter.html">бесплатный плоттер</a>.</div>
 </div></section>
 
 <footer><div class="wrap">
-  ООО «Стадика», ИНН 1001309379. Связь: <a href="mailto:info@stadika.ru">info@stadika.ru</a><br>
-  Карты: © участники OpenStreetMap, OpenSeaMap, Protomaps.
+  ООО «Стадика», ИНН 1001309379, ОГРН 1161001053620, 185035, г. Петрозаводск, ул. Максима Горького, д. 23, кв. 13.<br>
+  Связь: <a href="mailto:info@stadika.ru">info@stadika.ru</a> · <a href="oferta.html">Публичная оферта, оплата и возврат</a><br>
+  Карты: © участники OpenStreetMap, OpenSeaMap, Protomaps, Natural Earth.
 </div></footer>
 
 <script>
+const pf = document.getElementById('pay');
+pf.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fd = new FormData(pf);
+  const err = document.getElementById('pay-err');
+  err.textContent = '';
+  try {
+    const res = await fetch('api/pay', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tariff: fd.get('tariff'), email: fd.get('email') }) });
+    if (res.status === 400) { err.textContent = 'Проверьте email.'; return; }
+    if (!res.ok) throw new Error();
+    location.href = (await res.json()).url;
+  } catch {
+    err.textContent = 'Оплата сейчас недоступна, попробуйте позже или напишите на info@stadika.ru.';
+  }
+});
 const f = document.getElementById('f');
 const params = new URLSearchParams(location.search);
 f.addEventListener('submit', async (e) => {

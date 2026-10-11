@@ -7,6 +7,7 @@ set -euo pipefail
 bash apps/android-plotter/build-www.sh
 out=_site_plotter
 mkdir -p "$out/app"
-cp landing/index.html landing/shot.png "$out/"
+cp landing/index.html landing/oferta.html landing/shot.png "$out/"
+mkdir -p "$out/pay" && cp landing/pay/index.html "$out/pay/"
 cp -r apps/android-plotter/www/. "$out/app/"
 echo "site ready in $out"

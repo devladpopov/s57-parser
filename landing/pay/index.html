@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Оплата Pro: Плоттер Стадики</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0b3d5c">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font:17px/1.5 system-ui,sans-serif;color:#1b2733;background:#f5f8fa}
+.wrap{max-width:640px;margin:0 auto;padding:28px 18px}
+.brand{font-weight:600;color:#0b3d5c}
+.card{background:#fff;border-radius:12px;padding:22px;box-shadow:0 1px 4px #0001;margin-top:16px}
+h1{font-size:26px;margin:8px 0}
+.key{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.06em;background:#eef3f6;border-radius:10px;padding:14px;text-align:center;margin:14px 0;user-select:all}
+.btn{display:inline-block;background:#f08a00;color:#fff;font-weight:600;padding:12px 20px;border-radius:8px;text-decoration:none;border:0;font-size:17px;cursor:pointer}
+.btn.ghost{background:#fff;color:#0b3d5c;border:2px solid #0b3d5c}
+ol{padding-left:20px}
+.note{font-size:14px;color:#667}
+</style>
+</head><body><div class="wrap">
+<a class="brand" href="../">Плоттер Стадики</a>
+<div class="card" id="box"><h1>Проверяем оплату…</h1><p>Обычно это занимает несколько секунд.</p></div>
+<p class="note">Вопросы по оплате: <a href="mailto:info@stadika.ru">info@stadika.ru</a>, укажите номер заказа. ООО «Стадика», ИНН 1001309379.</p>
+</div>
+<script>
+const q = new URLSearchParams(location.search);
+const inv = Number(q.get('inv')), t = q.get('t') || '';
+const box = document.getElementById('box');
+const show = (html) => { box.innerHTML = html; };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function check() {
+  if (!inv || !t) return show('<h1>Заказ не найден</h1><p>Откройте ссылку из письма Robokassa или напишите нам.</p>');
+  // Robokassa confirms the payment to the server a little after sending the buyer here.
+  for (let i = 0; i < 40; i++) {
+    let r = null;
+    try {
+      const res = await fetch('../api/pay/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inv, t }) });
+      if (res.status === 404) return show('<h1>Заказ не найден</h1><p>Напишите нам, номер заказа ' + inv + '.</p>');
+      if (res.ok) r = await res.json();
+    } catch {}
+    if (r && r.paid) {
+      const until = new Date(r.exp * 1000).toLocaleDateString('ru-RU');
+      return show('<h1>Оплачено, спасибо!</h1><p>Ваш ключ активации (заказ ' + inv + '):</p>' +
+        '<div class="key" id="key">' + r.key + '</div>' +
+        '<p><button class="btn" id="copy">Скопировать ключ</button> <a class="btn ghost" href="../app/plotter.html">Открыть плоттер</a></p>' +
+        '<ol><li>Откройте плоттер (приложение или веб-версию).</li><li>«Меню», раздел «Подписка».</li><li>Вставьте ключ и нажмите «Активировать».</li></ol>' +
+        '<p>Pro действует до ' + until + '. Ключ работает на двух устройствах. <b>Сохраните ключ</b>: эта страница открывается по ссылке, сохраните и её.</p>');
+    }
+    if (q.get('fail') && i === 0) {
+      return show('<h1>Оплата не прошла</h1><p>Деньги не списаны. Можно <a href="../#buy">попробовать ещё раз</a>.</p>');
+    }
+    await wait(i < 10 ? 2000 : 5000);
+  }
+  show('<h1>Оплата ещё не подтверждена</h1><p>Обновите страницу через пару минут. Если деньги списаны, а ключа нет, напишите нам, номер заказа ' + inv + '.</p>');
+}
+document.addEventListener('click', async (e) => {
+  if (e.target.id !== 'copy') return;
+  await navigator.clipboard.writeText(document.getElementById('key').textContent);
+  e.target.textContent = 'Скопировано';
+});
+check();
+</script>
+</body></html>
