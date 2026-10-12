@@ -115,18 +115,26 @@ export function handler(dbPath: string, privateJwk: JsonWebKey, origin: string, 
   };
 }
 
-if (import.meta.main) {
-  const e = process.env;
+/** Server settings from the environment (see the top of the file). */
+export function fromEnv(e: Record<string, string | undefined>) {
   const jwk = e.LICENSE_PRIVATE_JWK;
   if (!jwk) throw new Error('LICENSE_PRIVATE_JWK is not set');
-  const port = Number(e.PORT ?? 8787);
-  const hostname = e.HOST ?? '127.0.0.1';
   const pay: PayOptions | undefined = e.ROBOKASSA_LOGIN
     ? {
         ordersPath: e.ORDERS ?? './orders.json',
         cfg: { login: e.ROBOKASSA_LOGIN, pass1: e.ROBOKASSA_PASS1 ?? '', pass2: e.ROBOKASSA_PASS2 ?? '', test: e.ROBOKASSA_TEST === '1', page: e.PAY_PAGE ?? 'https://plotter.stadika.ru/pay/' },
       }
     : undefined;
-  Bun.serve({ hostname, port, fetch: handler(e.LICENSE_DB ?? './license-db.json', JSON.parse(jwk), e.ALLOWED_ORIGIN ?? '*', undefined, e.WAITLIST, pay) });
+  return {
+    port: Number(e.PORT ?? 8787),
+    hostname: e.HOST ?? '127.0.0.1',
+    pay,
+    fetch: handler(e.LICENSE_DB ?? './license-db.json', JSON.parse(jwk) as JsonWebKey, e.ALLOWED_ORIGIN ?? '*', undefined, e.WAITLIST, pay),
+  };
+}
+
+if (import.meta.main) {
+  const { hostname, port, pay, fetch } = fromEnv(process.env);
+  Bun.serve({ hostname, port, fetch });
   console.log(`Licence server on ${hostname}:${port}${pay ? `, payments ${pay.cfg.test ? 'TEST' : 'live'}` : ''}`);
 }

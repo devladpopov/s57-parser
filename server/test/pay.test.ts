@@ -85,4 +85,19 @@ describe('Robokassa payments', () => {
     const bad = await h(new Request('http://x/api/pay/result', { method: 'POST', body: new URLSearchParams({ OutSum: '390', InvId: '1', Shp_t: t, SignatureValue: 'x' }) }));
     expect(bad.status).toBe(400);
   });
+
+  test('server errors and preflight', async () => {
+    const keys = await generateKeys();
+    const h = handler(join(dir, 'db2.json'), keys.privateJwk, '*', () => NOW, join(dir, 'w.jsonl'), { ordersPath: join(dir, 'orders2.json'), cfg });
+    const req = (path: string, init?: RequestInit) => h(new Request(`http://x/api${path}`, init));
+    expect((await req('/pay', { method: 'OPTIONS' })).status).toBe(204);
+    expect((await req('/pay')).status).toBe(405);
+    expect((await req('/pay/result', { method: 'POST', body: 'x', headers: { 'Content-Type': 'multipart/form-data' } })).status).toBe(400);
+    expect((await req('/pay', { method: 'POST', body: '{' })).status).toBe(400);
+    expect((await req('/pay', { method: 'POST', body: JSON.stringify({ tariff: 'nope' }) })).status).toBe(400);
+    expect((await req('/pay/status', { method: 'POST', body: JSON.stringify({ inv: 9, t: 'x' }) })).status).toBe(404);
+    expect((await req('/pay/other', { method: 'POST', body: '{}' })).status).toBe(404);
+    const fail = await req('/pay/fail?InvId=1');
+    expect(fail.status).toBe(302);
+  });
 });

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeys, verifyLicense } from '../../demo/license.js';
 import { addAccount, issue, MAX_DEVICES, newKey, resetDevices, type Db } from '../license-store.js';
-import { handler, loadDb, saveDb } from '../license-server.js';
+import { fromEnv, handler, loadDb, saveDb } from '../license-server.js';
 import { waitlistEntry } from '../waitlist.js';
 
 const NOW = 1_790_000_000;
@@ -112,5 +112,19 @@ describe('waitlist', () => {
   test('the licence also answers under /api/', async () => {
     const h = handler(join(dir, 'db3.json'), keys.privateJwk, '*', () => NOW);
     expect((await h(new Request('http://x/api/license', { method: 'POST', body: '{"key":"NOPE","dev":"x"}' }))).status).toBe(403);
+  });
+});
+
+describe('settings from the environment', () => {
+  test('defaults, payments only with a Robokassa login', async () => {
+    const { privateJwk } = await generateKeys();
+    const jwk = JSON.stringify(privateJwk);
+    expect(() => fromEnv({})).toThrow('LICENSE_PRIVATE_JWK');
+    const off = fromEnv({ LICENSE_PRIVATE_JWK: jwk });
+    expect(off).toMatchObject({ port: 8787, hostname: '127.0.0.1', pay: undefined });
+    const on = fromEnv({ LICENSE_PRIVATE_JWK: jwk, PORT: '8791', HOST: '0.0.0.0', ROBOKASSA_LOGIN: 'shop', ROBOKASSA_PASS1: 'a', ROBOKASSA_PASS2: 'b', ROBOKASSA_TEST: '1', ORDERS: '/o.json' });
+    expect(on).toMatchObject({ port: 8791, hostname: '0.0.0.0', pay: { ordersPath: '/o.json', cfg: { login: 'shop', pass1: 'a', pass2: 'b', test: true, page: 'https://plotter.stadika.ru/pay/' } } });
+    expect(fromEnv({ LICENSE_PRIVATE_JWK: jwk, ROBOKASSA_LOGIN: 'shop' }).pay).toMatchObject({ ordersPath: './orders.json', cfg: { pass1: '', pass2: '', test: false } });
+    expect(typeof on.fetch).toBe('function');
   });
 });
