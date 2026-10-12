@@ -1,10 +1,11 @@
 /**
  * Offline chartplotter prototype.
  *
- * A Leaflet map with S-57 charts on top of OSM. Charts come from the user's own
- * files (.000 + updates, or a NOAA .zip exchange set) or from NOAA by cell name,
- * and are kept in IndexedDB, so after the first visit the page works with no
- * network (the service worker caches the app shell and visited OSM tiles).
+ * A Leaflet map with S-57 charts on top of our own offline base maps (see
+ * basemap.ts). Charts come from the user's own files (.000 + updates, or a
+ * NOAA .zip exchange set) or from NOAA by cell name, and are kept in
+ * IndexedDB, so after the first visit the page works with no network (the
+ * service worker caches the app shell with the world map).
  *
  * Other chart data (OpenSeaMap seamarks, later licensed services) comes from
  * chart sources, see sources.ts.
@@ -26,7 +27,7 @@ import { allSources, onSourcesChanged, registerSource, type ChartSource } from '
 import { fromGpx, guide, hoursAt, routeLengthNm, startIndex, toGpx, trackLengthNm, trackToGpx, type TrackPoint, type Waypoint } from './route.js';
 import { describeFeature, formatLatLon, isMeta, parseLatLon } from './feature-info.js';
 import { initLicense } from './license-ui.js';
-import { initBasemap } from './basemap.js';
+import { initBasemap, initWorld } from './basemap.js';
 import { aheadOf, depthSettings, describeHazard, routeHazards, segmentHazards, worstHazard, type ChartFeature } from './depth.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -57,14 +58,11 @@ const menu = $<HTMLDetailsElement>('menu-body');
 if (window.innerWidth < 700) menu.open = false;
 $('menu-btn').addEventListener('click', () => { menu.open = !menu.open; });
 
-const map = L.map('map', { zoomControl: false }).setView([59.95, 29.95], 10);
+const map = L.map('map', { zoomControl: false, maxZoom: 18 }).setView([59.95, 29.95], 10);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 // Route, track, own ship and warnings go above the chart canvas (overlay pane).
 map.createPane('nav').style.zIndex = '450';
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18,
-  attribution: '&copy; OpenStreetMap contributors',
-}).addTo(map);
+void initWorld(map, RU);
 initBasemap(map, t, RU);
 
 // ─── Chart sources ──────────────────────────────────────────────────────────

@@ -7,10 +7,11 @@
 # https page cannot. Leaflet CSS is bundled so the first start works offline.
 set -euo pipefail
 out=apps/android-plotter/www
-mkdir -p "$out/dist"
+mkdir -p "$out/dist" "$out/world"
 sed 's#https://unpkg.com/leaflet@1.9.4/dist/leaflet.css#./leaflet.css#' demo/plotter.html > "$out/index.html"
 cp "$out/index.html" "$out/plotter.html"
 cp demo/dist/plotter.js "$out/dist/"
 cp demo/plotter-sw.js demo/plotter.webmanifest demo/plotter-icon.svg demo/noaa-coverage.json "$out/"
+cp demo/world/world.json "$out/world/"
 cp node_modules/leaflet/dist/leaflet.css "$out/"
 echo "www ready: $(ls "$out" | tr '\n' ' ')"

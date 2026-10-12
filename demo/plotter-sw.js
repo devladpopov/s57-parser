@@ -1,16 +1,17 @@
 // Service worker for the offline plotter: app shell is cached on install and
-// refreshed in the background; OSM and OpenSeaMap tiles are cached as they are viewed so the
-// areas you looked at stay visible offline. Charts live in IndexedDB.
-const SHELL = 'plotter-shell-v12';
+// refreshed in the background; it includes the world map (land, borders). OpenSeaMap tiles are
+// cached as they are viewed so the areas you looked at stay visible offline. Charts live in IndexedDB.
+const SHELL = 'plotter-shell-v13';
 const TILES = 'plotter-tiles-v1';
 const MAX_TILES = 3000;
-const TILE_HOSTS = new Set(['tile.openstreetmap.org', 'tiles.openseamap.org']);
+const TILE_HOSTS = new Set(['tiles.openseamap.org']);
 const SHELL_URLS = [
   './plotter.html',
   './dist/plotter.js',
   './plotter.webmanifest',
   './plotter-icon.svg',
   './noaa-coverage.json',
+  './world/world.json',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
 ];
 

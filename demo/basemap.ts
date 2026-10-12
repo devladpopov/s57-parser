@@ -1,13 +1,19 @@
 /**
- * Offline base map of the home waters (Gulf of Finland, Neva, Ladoga): one
- * PMTiles file of OpenStreetMap vector tiles (Protomaps basemap), downloaded
- * once or opened from a file and kept in the origin private file system, then
- * drawn by protomaps-leaflet with no network. Outside its bounds the online
- * OSM tiles show as before.
+ * Base maps under the charts, both offline:
+ *
+ * - the world layer: land, lakes and country borders from Natural Earth,
+ *   bundled with the app (demo/world/world.json, see world.ts), borders as
+ *   Russia officially sees them;
+ * - the detailed map of the home waters (Gulf of Finland, Neva, Ladoga): one
+ *   PMTiles file of OpenStreetMap vector tiles (Protomaps basemap), downloaded
+ *   once or opened from a file and kept in the origin private file system,
+ *   then drawn by protomaps-leaflet over the world layer. Its own country
+ *   borders are not drawn, the world layer's show through.
  */
 import L from 'leaflet';
-import { leafletLayer } from 'protomaps-leaflet';
+import { leafletLayer, type PaintRule } from 'protomaps-leaflet';
 import { FileSource, PMTiles } from 'pmtiles';
+import { decodeTopology, type Topology } from './world.js';
 
 /** Where the region file is published (absolute: the Android app runs from http://localhost). */
 export const BASEMAP_URL = 'https://plotter.stadika.ru/app/basemap/nw-z14.pmtiles';
@@ -59,6 +65,51 @@ async function remove(): Promise<void> {
   await dir.removeEntry(NAME).catch(() => {});
 }
 
+// Colours of the Protomaps light flavor, so the world layer meets the
+// detailed map with no seam. The water is the map background (plotter.html).
+const LAND = '#e2dfda';
+const WATER = '#80deea';
+const BORDER = '#9a9a9a';
+/** Country names show from their Natural Earth label zoom up to this one. */
+const LABEL_MAX_ZOOM = 7;
+
+/** Draws the bundled world layer (in the app shell, so it works offline). */
+export async function initWorld(map: L.Map, ru: boolean): Promise<void> {
+  // Under the tile pane (200): the detailed map and the seamarks go over it.
+  map.createPane('world').style.zIndex = '150';
+  const renderer = L.canvas({ pane: 'world' });
+  const topo = await (await fetch('./world/world.json')).json() as Topology;
+  const opts = { pane: 'world', renderer, interactive: false };
+  const countries = decodeTopology(topo, 'countries');
+  L.geoJSON(countries as never, { ...opts, attribution: 'Natural Earth', style: { stroke: false, fillColor: LAND, fillOpacity: 1 } }).addTo(map);
+  L.geoJSON(decodeTopology(topo, 'lakes') as never, { ...opts, style: { stroke: false, fillColor: WATER, fillOpacity: 1 } }).addTo(map);
+  L.geoJSON(decodeTopology(topo, 'borders') as never, { ...opts, style: { color: BORDER, weight: 1 } }).addTo(map);
+
+  const labels = countries.features.filter((f) => f.properties.ly != null).map(({ properties: p }) => {
+    const text = document.createElement('span');
+    text.textContent = (ru ? p.ru : p.en) ?? p.en;
+    const icon = L.divIcon({ className: 'world-label', html: text, iconSize: null as never });
+    return { minZoom: Number(p.mz) || 0, marker: L.marker([p.ly, p.lx], { pane: 'world', icon, interactive: false, keyboard: false }) };
+  });
+  const showLabels = () => {
+    const z = map.getZoom();
+    for (const { minZoom, marker } of labels) {
+      if (z >= minZoom && z <= LABEL_MAX_ZOOM) marker.addTo(map); else marker.remove();
+    }
+  };
+  map.on('zoomend', showLabels);
+  showLabels();
+}
+
+/** Country (admin level 2) borders of the detailed map: not ours, so not drawn. */
+const isCountryBorder = (props: Record<string, unknown>) =>
+  props.kind === 'country' || props.kind === 'disputed' || (typeof props.kind_detail === 'number' && props.kind_detail <= 2);
+
+const withoutCountryBorders = (rules: PaintRule[]): PaintRule[] => rules.map((rule) => rule.dataLayer !== 'boundaries' ? rule : {
+  ...rule,
+  filter: (z, f) => !isCountryBorder(f.props) && (rule.filter?.(z, f) ?? true),
+});
+
 const mb = (n: number) => `${(n / 1048576).toFixed(0)} MB`;
 
 export function initBasemap(map: L.Map, t: T, ru: boolean): void {
@@ -73,14 +124,17 @@ export function initBasemap(map: L.Map, t: T, ru: boolean): void {
     layer = null;
     const file = await storedFile();
     if (file) {
-      layer = leafletLayer({
+      const detailed = leafletLayer({
         url: new PMTiles(new FileSource(file)),
         flavor: 'light',
         lang: ru ? 'ru' : 'en',
         maxDataZoom: 14,
         bounds: BASEMAP_BOUNDS,
         attribution: '&copy; OpenStreetMap contributors, Protomaps',
-      }) as unknown as L.Layer;
+      });
+      // The flavor's rules are read at drawing time, so they can be swapped here.
+      detailed.paintRules = withoutCountryBorders(detailed.paintRules);
+      layer = detailed as unknown as L.Layer;
       layer.addTo(map);
     }
     stateEl.textContent = file

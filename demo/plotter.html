@@ -16,6 +16,10 @@
 }
 *{box-sizing:border-box}
 html,body,#map{margin:0;height:100%}
+/* Sea under the world layer (basemap.ts), the water colour of the base maps */
+#map{background:#80deea}
+.world-label span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;font:600 11px/1 system-ui,sans-serif;
+  color:#6f6a64;letter-spacing:.03em;text-shadow:0 0 2px #fff,0 0 2px #fff}
 body{font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--fg);
   -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;overflow:hidden}
 [hidden]{display:none!important}
@@ -129,7 +133,8 @@ body[data-mode=DUSK] input,body[data-mode=DUSK] select,body[data-mode=DUSK] .btn
 body[data-mode=NIGHT] input,body[data-mode=NIGHT] select,body[data-mode=NIGHT] .btn,body[data-mode=NIGHT] .pick span,body[data-mode=NIGHT] #menu li button{background:#0d0a0a}
 body[data-mode=DUSK] .fab.on,body[data-mode=NIGHT] .fab.on,body[data-mode=DUSK] .btn.primary,body[data-mode=NIGHT] .btn.primary,
 body[data-mode=DUSK] .pick.primary span,body[data-mode=NIGHT] .pick.primary span{background:var(--navy);color:#120e0e}
-body[data-mode=NIGHT] .leaflet-tile-pane{filter:brightness(.35)}
+body[data-mode=NIGHT] .leaflet-tile-pane,body[data-mode=NIGHT] .leaflet-world-pane{filter:brightness(.35)}
+body[data-mode=NIGHT] #map{background:#2d4e52}
 </style>
 </head><body>
 <div id="map"></div>
