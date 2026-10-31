@@ -1,6 +1,6 @@
 {
-  "appId": "ru.stadika.plotter",
-  "appName": "Плоттер Стадики",
+  "appId": "ru.vladislavpopov.plotter",
+  "appName": "Плоттер Попова",
   "webDir": "www",
   "server": {
     "androidScheme": "http",

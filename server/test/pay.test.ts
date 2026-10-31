@@ -8,7 +8,7 @@ import { confirmPayment, createOrder, loadOrders, orderStatus, phpUrlencode, typ
 import type { Db } from '../license-store.js';
 
 const NOW = 1_790_000_000;
-const cfg: RobokassaConfig = { login: 'plotter', pass1: 'p1', pass2: 'p2', test: true, page: 'https://plotter.stadika.ru/pay/' };
+const cfg: RobokassaConfig = { login: 'plotter', pass1: 'p1', pass2: 'p2', test: true, page: 'https://plotter.vladislavpopov.ru/pay/' };
 const sha512 = (s: string) => new Bun.CryptoHasher('sha512').update(s).digest('hex');
 const resultSig = (sum: string, inv: number, t: string) => sha512(`${sum}:${inv}:p2:Shp_t=${t}`);
 
@@ -81,7 +81,7 @@ describe('Robokassa payments', () => {
     expect(loadOrders(ordersPath).orders[1].paid).toBe(NOW);
     const back = await h(new Request(`http://x/api/pay/success?InvId=1&Shp_t=${t}&OutSum=390`));
     expect(back.status).toBe(302);
-    expect(back.headers.get('location')).toBe(`https://plotter.stadika.ru/pay/?inv=1&t=${t}`);
+    expect(back.headers.get('location')).toBe(`https://plotter.vladislavpopov.ru/pay/?inv=1&t=${t}`);
     const bad = await h(new Request('http://x/api/pay/result', { method: 'POST', body: new URLSearchParams({ OutSum: '390', InvId: '1', Shp_t: t, SignatureValue: 'x' }) }));
     expect(bad.status).toBe(400);
   });

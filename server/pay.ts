@@ -48,7 +48,7 @@ export interface RobokassaConfig {
   pass1: string;
   pass2: string;
   test: boolean;
-  /** Where Success and Fail send the buyer, e.g. https://plotter.stadika.ru/pay/ */
+  /** Where Success and Fail send the buyer, e.g. https://plotter.vladislavpopov.ru/pay/ */
   page: string;
 }
 

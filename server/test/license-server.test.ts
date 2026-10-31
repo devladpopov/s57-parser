@@ -123,7 +123,7 @@ describe('settings from the environment', () => {
     const off = fromEnv({ LICENSE_PRIVATE_JWK: jwk });
     expect(off).toMatchObject({ port: 8787, hostname: '127.0.0.1', pay: undefined });
     const on = fromEnv({ LICENSE_PRIVATE_JWK: jwk, PORT: '8791', HOST: '0.0.0.0', ROBOKASSA_LOGIN: 'shop', ROBOKASSA_PASS1: 'a', ROBOKASSA_PASS2: 'b', ROBOKASSA_TEST: '1', ORDERS: '/o.json' });
-    expect(on).toMatchObject({ port: 8791, hostname: '0.0.0.0', pay: { ordersPath: '/o.json', cfg: { login: 'shop', pass1: 'a', pass2: 'b', test: true, page: 'https://plotter.stadika.ru/pay/' } } });
+    expect(on).toMatchObject({ port: 8791, hostname: '0.0.0.0', pay: { ordersPath: '/o.json', cfg: { login: 'shop', pass1: 'a', pass2: 'b', test: true, page: 'https://plotter.vladislavpopov.ru/pay/' } } });
     expect(fromEnv({ LICENSE_PRIVATE_JWK: jwk, ROBOKASSA_LOGIN: 'shop' }).pay).toMatchObject({ ordersPath: './orders.json', cfg: { pass1: '', pass2: '', test: false } });
     expect(typeof on.fetch).toBe('function');
   });

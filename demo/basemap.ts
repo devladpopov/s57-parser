@@ -16,7 +16,7 @@ import { FileSource, PMTiles } from 'pmtiles';
 import { decodeTopology, type Topology } from './world.js';
 
 /** Where the region file is published (absolute: the Android app runs from http://localhost). */
-export const BASEMAP_URL = 'https://plotter.stadika.ru/app/basemap/nw-z14.pmtiles';
+export const BASEMAP_URL = 'https://plotter.vladislavpopov.ru/app/basemap/nw-z14.pmtiles';
 export const BASEMAP_BOUNDS: L.LatLngBoundsExpression = [[59.6, 27.7], [61.8, 33.1]];
 
 const NAME = 'basemap.pmtiles';

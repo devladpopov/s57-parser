@@ -122,7 +122,7 @@ export function fromEnv(e: Record<string, string | undefined>) {
   const pay: PayOptions | undefined = e.ROBOKASSA_LOGIN
     ? {
         ordersPath: e.ORDERS ?? './orders.json',
-        cfg: { login: e.ROBOKASSA_LOGIN, pass1: e.ROBOKASSA_PASS1 ?? '', pass2: e.ROBOKASSA_PASS2 ?? '', test: e.ROBOKASSA_TEST === '1', page: e.PAY_PAGE ?? 'https://plotter.stadika.ru/pay/' },
+        cfg: { login: e.ROBOKASSA_LOGIN, pass1: e.ROBOKASSA_PASS1 ?? '', pass2: e.ROBOKASSA_PASS2 ?? '', test: e.ROBOKASSA_TEST === '1', page: e.PAY_PAGE ?? 'https://plotter.vladislavpopov.ru/pay/' },
       }
     : undefined;
   return {

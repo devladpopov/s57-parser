@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Assemble plotter.stadika.ru in _site_plotter/: the landing page at the root
+# Assemble plotter.vladislavpopov.ru in _site_plotter/: the landing page at the root
 # and the plotter under app/ (the same files as the Android app). Run from the
 # repository root after `bun demo/build.ts`. The base map file goes to
 # app/basemap/ on the server separately.
