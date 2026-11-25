@@ -4,6 +4,7 @@
  *   POST /license   {"key": "ABCDE-FGHJK", "dev": "<device id>"}  ->  {"token": "..."} | {"error": "..."}
  *   POST /waitlist  {"contact": "...", survey answers}  ->  {"ok": true}
  *   /pay...         buying a key through Robokassa, see pay.ts
+ *   GET /health     liveness for monitors
  *
  * All also answer under /api/ (behind the site's reverse proxy).
  *
@@ -89,6 +90,8 @@ export function handler(dbPath: string, privateJwk: JsonWebKey, origin: string, 
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/api(?=\/)/, '');
     if (pay && path.startsWith('/pay')) return payRoute(path, req, url, pay);
+    // For uptime monitors; says whether payments are switched on.
+    if (path === '/health' && req.method === 'GET') return json({ ok: true, pay: !!pay });
     if (path !== '/license' && path !== '/waitlist') return json({ error: 'not-found' }, 404);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     if (req.method !== 'POST') return json({ error: 'bad-request' }, 405);

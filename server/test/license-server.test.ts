@@ -51,6 +51,13 @@ describe('licence server', () => {
   const post = (body: string, method = 'POST', path = '/license') =>
     new Request(`http://x${path}`, { method, body: method === 'POST' ? body : undefined, headers: { 'Content-Type': 'application/json' } });
 
+  test('answers health checks', async () => {
+    const h = handler(join(dir, 'health.json'), keys.privateJwk, '*', () => NOW);
+    const res = await h(new Request('http://x/api/health'));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, pay: false });
+  });
+
   test('activates over HTTP and keeps the device in the accounts file', async () => {
     const path = join(dir, 'db.json');
     expect(loadDb(path)).toEqual({});
